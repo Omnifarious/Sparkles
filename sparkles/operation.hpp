@@ -74,7 +74,7 @@ class operation_base : public ::std::enable_shared_from_this<operation_base>
    void i_dependency_finished(const opbase_ptr_t &dependency) = 0;
 };
 
-operation_base::~operation_base() = default;
+inline operation_base::~operation_base() = default;
 
 template <class ResultType>
 class operation : public operation_base
