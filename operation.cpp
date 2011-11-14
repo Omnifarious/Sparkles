@@ -27,8 +27,8 @@ void operation_base::dependency_finished(const opbase_ptr_t &dependency)
 
 void operation_base::set_finished()
 {
-   // This is both so there is something to pass to dependency_changed, and so
-   // this object is guaranteed to stick around.
+   // This is both so there is something to pass to dependency_changed, and to
+   // guarantee that this object sticks around.
    const opbase_ptr_t me(shared_from_this());
    finished_ = true;
 
