@@ -1,6 +1,7 @@
 #include <sparkles/errors.hpp>
 #include <memory>
 #include <unordered_set>
+#include <unordered_map>
 #include <functional>
 #include <exception>
 #include <system_error>
@@ -45,30 +46,11 @@ class operation_base : public ::std::enable_shared_from_this<operation_base>
    void cancel_dependency(const opbase_ptr_t &dependency);
 
  private:
-   typedef ::std::pair<operation_base *, ::std::weak_ptr<operation_base> > dependent_t;
-   class dephasher :
-      public ::std::unary_function<dependent_t, ::std::size_t>
-   {
-    public:
-      ::std::size_t
-      operator ()(const dependent_t &dependent) const {
-         return hasher(dependent.first);
-      }
-
-    private:
-      const ::std::hash<dependent_t::first_type> hasher;
-   };
-   struct depeq :
-      public ::std::binary_function<dependent_t, dependent_t, bool>
-   {
-      bool operator ()(const dependent_t &a, const dependent_t &b) const {
-         return a.first == b.first;
-      }
-   };
+   typedef ::std::weak_ptr<operation_base> weak_opbase_ptr_t;
 
    bool finished_;
-   ::std::unordered_set< opbase_ptr_t > dependencies_;
-   ::std::unordered_set<dependent_t, dephasher, depeq> dependents_;
+   ::std::unordered_set<opbase_ptr_t> dependencies_;
+   ::std::unordered_map<operation_base *, weak_opbase_ptr_t> dependents_;
 
    virtual
    void i_dependency_finished(const opbase_ptr_t &dependency) = 0;
