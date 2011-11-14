@@ -7,6 +7,7 @@
 #include <system_error>
 #include <string>
 #include <utility>
+#include <type_traits>
 
 namespace sparkles {
 
@@ -62,6 +63,8 @@ template <class ResultType>
 class operation : public operation_base
 {
  public:
+   typedef typename ::std::remove_const<ResultType>::type result_t;
+
    operation(operation &&other) = default;
    operation &operator =(operation &&other) = default;
 
@@ -81,23 +84,23 @@ class operation : public operation_base
    bool is_exception() const { return exception_ != nullptr; }
    bool is_error() const { return is_error_; }
 
-   ResultType &&result();
+   result_t &&result();
 
  protected:
-   void set_result(ResultType &&result);
-   void set_result(const ResultType &result);
+   void set_result(result_t &&result);
+   void set_result(const result_t &result);
    void set_result(::std::exception_ptr exception);
    void set_result(::std::error_code error);
 
  private:
    bool is_valid_, is_error_;
-   ResultType result_;
+   result_t result_;
    ::std::exception_ptr exception_;
    ::std::error_code error_;
 };
 
 template <class ResultType>
-ResultType &&operation<ResultType>::result()
+typename operation<ResultType>::result_t &&operation<ResultType>::result()
 {
    if (!is_valid_) {
       throw invalid_result("attempt to get an already fetched result.");
@@ -116,7 +119,7 @@ ResultType &&operation<ResultType>::result()
 }
 
 template <class ResultType>
-void operation<ResultType>::set_result(ResultType &&result)
+void operation<ResultType>::set_result(operation<ResultType>::result_t &&result)
 {
    if (is_valid_) {
       throw invalid_result("Attempt to set a result that's already been set.");
@@ -131,7 +134,9 @@ void operation<ResultType>::set_result(ResultType &&result)
 }
 
 template <class ResultType>
-void operation<ResultType>::set_result(const ResultType &result)
+void operation<ResultType>::set_result(
+   const operation<ResultType>::result_t &result
+   )
 {
    if (is_valid_) {
       throw invalid_result("Attempt to set a result that's already been set.");
