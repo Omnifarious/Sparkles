@@ -85,7 +85,6 @@ BOOST_AUTO_TEST_CASE( construct_empty )
    auto nested = []() {
       finishedq_t finishedq;
       ::std::shared_ptr<opthunk> fred{opthunk::create("fred", finishedq, {})};
-      BOOST_REQUIRE(true);
    };
    BOOST_CHECK_NO_THROW(nested());
 }
@@ -93,16 +92,30 @@ BOOST_AUTO_TEST_CASE( construct_empty )
 BOOST_AUTO_TEST_CASE( finish_empty )
 {
    using ::std::shared_ptr;
-   BOOST_REQUIRE(true);
    finishedq_t finishedq;
-   BOOST_REQUIRE(true);
    shared_ptr<opthunk> fred{opthunk::create("fred", finishedq, {})};
-   BOOST_REQUIRE(true);
    fred->set_finished();
-   BOOST_REQUIRE(true);
    auto correct = {"fred"};
    BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
                                  correct.begin(), correct.end());
+}
+
+BOOST_AUTO_TEST_CASE( finish_chain )
+{
+   using ::std::shared_ptr;
+   finishedq_t finishedq;
+   shared_ptr<opthunk> top{opthunk::create("a", finishedq, {})};
+   shared_ptr<opthunk> element{opthunk::create("b", finishedq, {top})};
+   element = opthunk::create("c", finishedq, {element});
+   element = opthunk::create("d", finishedq, {element});
+   BOOST_CHECK(!top->finished());
+   BOOST_CHECK(!element->finished());
+   top->set_finished();
+   auto correct = {"a", "b", "c", "d"};
+   BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
+                                 correct.begin(), correct.end());
+   BOOST_CHECK(top->finished());
+   BOOST_CHECK(element->finished());
 }
 
 BOOST_AUTO_TEST_SUITE_END();
