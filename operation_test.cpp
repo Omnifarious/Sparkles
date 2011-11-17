@@ -119,6 +119,23 @@ BOOST_AUTO_TEST_CASE( finish_chain )
    BOOST_CHECK(element->finished());
 }
 
+BOOST_AUTO_TEST_CASE( destroy_dependent )
+{
+   typedef ::std::shared_ptr<opthunk> op_ptr;
+   finishedq_t finishedq;
+   op_ptr top{opthunk::create("a", finishedq, nullptr, {})};
+   bool next_gone = false;
+   op_ptr next{opthunk::create("b", finishedq, &next_gone, {top})};
+   next.reset();
+   BOOST_CHECK(next_gone);
+   BOOST_CHECK(finishedq.empty());
+   top->set_finished();
+   auto correct = {"a"};
+   BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
+                                 correct.begin(), correct.end());
+   BOOST_CHECK(top->finished());
+}
+
 BOOST_AUTO_TEST_SUITE_END()
 
 } // namespace test
