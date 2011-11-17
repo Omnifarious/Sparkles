@@ -18,11 +18,11 @@ class opthunk : public operation_base {
    };
 
  public:
-   opthunk(const ::std::string &name, finishedq_t &finishedq,
-           const privclass &ignored,
+   opthunk(const privclass &ignored,
+           const ::std::string &name, finishedq_t &finishedq, bool *deleted,
            const ::std::initializer_list<opbase_ptr_t> &lst)
         : operation_base(lst.begin(), lst.end()),
-          name_(name), finishedq_(finishedq),
+          name_(name), finishedq_(finishedq), deleted_(deleted),
           numdeps_(lst.size()),
           depsfinished_(::std::count_if(lst.begin(), lst.end(),
                                         [](const opbase_ptr_t &dep) -> bool {
@@ -31,6 +31,7 @@ class opthunk : public operation_base {
                            ))
    {
    }
+   virtual ~opthunk() { if (deleted_) { *deleted_ = true; } }
 
    ::std::string name() const { return name_; }
 
@@ -40,17 +41,15 @@ class opthunk : public operation_base {
    }
 
    static ::std::shared_ptr<opthunk>
-   create(const ::std::string &name, finishedq_t &finishedq,
+   create(const ::std::string &name, finishedq_t &finishedq, bool *deleted,
           const ::std::initializer_list<opbase_ptr_t> &lst)
    {
       ::std::shared_ptr<opthunk> newthunk{
-         ::std::make_shared<opthunk>(name, finishedq, privclass{}, lst)
+         ::std::make_shared<opthunk>(privclass{}, name, finishedq, deleted, lst)
             };
       register_as_dependent(newthunk);
       return newthunk;
    }
-
- protected:
 
  private:
    virtual void i_dependency_finished(const opbase_ptr_t &dependency) {
@@ -77,6 +76,7 @@ class opthunk : public operation_base {
  private:
    const ::std::string name_;
    finishedq_t &finishedq_;
+   bool * const deleted_;
    unsigned int numdeps_, depsfinished_;
 };
 
@@ -84,7 +84,8 @@ BOOST_AUTO_TEST_CASE( construct_empty )
 {
    auto nested = []() {
       finishedq_t finishedq;
-      ::std::shared_ptr<opthunk> fred{opthunk::create("fred", finishedq, {})};
+      ::std::shared_ptr<opthunk> fred{opthunk::create("fred", finishedq,
+                                                      nullptr, {})};
    };
    BOOST_CHECK_NO_THROW(nested());
 }
@@ -93,7 +94,7 @@ BOOST_AUTO_TEST_CASE( finish_empty )
 {
    using ::std::shared_ptr;
    finishedq_t finishedq;
-   shared_ptr<opthunk> fred{opthunk::create("fred", finishedq, {})};
+   shared_ptr<opthunk> fred{opthunk::create("fred", finishedq, nullptr, {})};
    fred->set_finished();
    auto correct = {"fred"};
    BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
@@ -104,10 +105,10 @@ BOOST_AUTO_TEST_CASE( finish_chain )
 {
    using ::std::shared_ptr;
    finishedq_t finishedq;
-   shared_ptr<opthunk> top{opthunk::create("a", finishedq, {})};
-   shared_ptr<opthunk> element{opthunk::create("b", finishedq, {top})};
-   element = opthunk::create("c", finishedq, {element});
-   element = opthunk::create("d", finishedq, {element});
+   shared_ptr<opthunk> top{opthunk::create("a", finishedq, nullptr, {})};
+   shared_ptr<opthunk> element{opthunk::create("b", finishedq, nullptr, {top})};
+   element = opthunk::create("c", finishedq, nullptr, {element});
+   element = opthunk::create("d", finishedq, nullptr, {element});
    BOOST_CHECK(!top->finished());
    BOOST_CHECK(!element->finished());
    top->set_finished();
