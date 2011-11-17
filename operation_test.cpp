@@ -9,7 +9,7 @@
 namespace sparkles {
 namespace test {
 
-BOOST_AUTO_TEST_SUITE(operation_test);
+BOOST_AUTO_TEST_SUITE(operation_test)
 
 typedef ::std::vector< ::std::string> finishedq_t;
 
@@ -19,7 +19,7 @@ class opthunk : public operation_base {
 
  public:
    opthunk(const ::std::string &name, finishedq_t &finishedq,
-           const privclass &ignored,
+           const privclass &,
            const ::std::initializer_list<opbase_ptr_t> &lst)
         : operation_base(lst.begin(), lst.end()),
           name_(name), finishedq_(finishedq),
@@ -118,7 +118,7 @@ BOOST_AUTO_TEST_CASE( finish_chain )
    BOOST_CHECK(element->finished());
 }
 
-BOOST_AUTO_TEST_SUITE_END();
+BOOST_AUTO_TEST_SUITE_END()
 
 } // namespace test
 } // namespace sparkles
