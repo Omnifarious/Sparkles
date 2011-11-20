@@ -52,8 +52,6 @@ class operation_base : public ::std::enable_shared_from_this<operation_base>
 
    void set_finished();
 
-   void cancel_dependency(const opbase_ptr_t &dependency);
-
    template <class UnaryFunction>
    UnaryFunction for_each_dependency(UnaryFunction f) const {
       return ::std::for_each(dependencies_.begin(),

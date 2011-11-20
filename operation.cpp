@@ -40,13 +40,4 @@ void operation_base::set_finished()
    }
 }
 
-void operation_base::cancel_dependency(const opbase_ptr_t &dependency)
-{
-   const opbase_ptr_t me(shared_from_this());
-   dependency->remove_dependent(me);
-   if (dependencies_.erase(dependency) <= 0) {
-      throw bad_dependency("Attempt to cancel dependency I don't have.");
-   }
-}
-
 } // namespace sparkles
