@@ -52,11 +52,9 @@ class opthunk : public operation_base {
                      if (!dep->finished()) all_finished = false;
                   });
                BOOST_CHECK(all_finished);
+               BOOST_CHECK(!finished());
                if (!finished()) {
                   set_finished();
-               } else {
-                  BOOST_CHECK_EQUAL(num_dependencies(), 0);
-                  finishedq_.push_back(name_);
                }
             }
          }
