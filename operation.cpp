@@ -9,10 +9,13 @@ void operation_base::add_dependent(const opbase_ptr_t &dependent)
    }
 }
 
-void operation_base::remove_dependent(const opbase_ptr_t &dependent)
+void operation_base::remove_dependent(const operation_base *dependent)
 {
    if (dependent != nullptr) {
-      dependents_.erase(dependent.get());
+      auto depiter = dependents_.find(const_cast<operation_base *>(dependent));
+      if (depiter != dependents_.end()) {
+         dependents_.erase(depiter);
+      }
    }
 }
 
@@ -32,11 +35,50 @@ void operation_base::set_finished()
    const opbase_ptr_t me(shared_from_this());
    finished_ = true;
 
-   for (auto &i: dependents_) {
-      auto locked_i = i.second.lock();
-      if (locked_i != nullptr) {
-         locked_i->dependency_finished(me);
+   {
+      ::std::unordered_set<opbase_ptr_t> saved_deps;
+      saved_deps.swap(dependencies_);
+      for (auto &dependency : saved_deps) {
+         dependency->remove_dependent(this);
       }
+   }
+
+   // We can't use the swap trick here because informing a dependent that we've
+   // finished may cause other dependents to de-register themselves.
+   while (dependents_.size() > 0) {
+      opbase_ptr_t dependent;
+      {
+         auto first = dependents_.begin();
+         dependent = first->second.lock();
+         dependents_.erase(first);
+      }
+      if (dependent != nullptr) {
+         dependent->dependency_finished(me);
+      }
+   }
+}
+
+void operation_base::remove_dependency(
+   ::std::unordered_set<opbase_ptr_t>::iterator &deppos
+   )
+{
+   const opbase_ptr_t me(shared_from_this());
+   if (deppos != dependencies_.end()) {
+      const opbase_ptr_t dep(*deppos);
+      dependencies_.erase(deppos);
+      dep->remove_dependent(this);
+   }
+   if ((dependencies_.size() <= 0) and !finished_) {
+      set_finished();
+   }
+}
+
+operation_base::~operation_base()
+{
+   // As a courtesy, tell all of our dependencies to forget about this object a
+   // dependent as it's about to go away.
+   for (auto &dependency : dependencies_) {
+      dependency->remove_dependent(this);
    }
 }
 
