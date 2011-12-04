@@ -12,6 +12,9 @@ CXXFLAGS = -O0 -ggdb -Wall -Wextra
 test: test_all
 	./test_all
 
+clean:
+	rm -f *.o *.gcov *.gcda *.gcno
+
 .PHONY: empty test
 
 test_all: $(patsubst %.cpp,%.o,$(LIBCPP) $(TESTCPP))
