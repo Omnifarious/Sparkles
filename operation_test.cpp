@@ -136,6 +136,89 @@ BOOST_AUTO_TEST_CASE( destroy_dependent )
    BOOST_CHECK(top->finished());
 }
 
+BOOST_AUTO_TEST_CASE( destroy_dependent_chain )
+{
+   typedef ::std::shared_ptr<opthunk> op_ptr;
+   finishedq_t finishedq;
+   op_ptr top{opthunk::create("a", finishedq, nullptr, {})};
+   bool b_gone = false;
+   op_ptr next{opthunk::create("b", finishedq, &b_gone, {top})};
+   bool c_gone = false;
+   next = opthunk::create("b", finishedq, &c_gone, {next});
+   BOOST_CHECK(!b_gone);
+   BOOST_CHECK(!c_gone);
+   next.reset();
+   BOOST_CHECK(b_gone);
+   BOOST_CHECK(c_gone);
+   BOOST_CHECK(finishedq.empty());
+   top->set_finished();
+   auto correct = {"a"};
+   BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
+                                 correct.begin(), correct.end());
+   BOOST_CHECK(top->finished());
+}
+
+BOOST_AUTO_TEST_CASE( forked_chain )
+{
+   typedef ::std::shared_ptr<opthunk> op_ptr;
+   finishedq_t finishedq;
+   op_ptr top{opthunk::create("top", finishedq, nullptr, {})};
+   op_ptr chain_a{opthunk::create("a.a", finishedq, nullptr, {top})};
+   chain_a = opthunk::create("a.b", finishedq, nullptr, {chain_a});
+   op_ptr chain_b{opthunk::create("b.a", finishedq, nullptr, {top})};
+   chain_b = opthunk::create("b.b", finishedq, nullptr, {chain_b});
+   BOOST_CHECK(!top->finished());
+   BOOST_CHECK(!chain_a->finished());
+   BOOST_CHECK(!chain_b->finished());
+   BOOST_CHECK(finishedq.empty());
+   top->set_finished();
+   BOOST_CHECK_EQUAL(finishedq.size(), 5);
+   if (finishedq.at(1) == "a.a") {
+      auto correct = {"top", "a.a", "a.b", "b.a", "b.b"};
+      BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
+                                    correct.begin(), correct.end());
+   } else {
+      auto correct = {"top", "b.a", "b.b", "a.a", "a.b"};
+      BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
+                                    correct.begin(), correct.end());
+   }
+   BOOST_CHECK(top->finished());
+   BOOST_CHECK(chain_a->finished());
+   BOOST_CHECK(chain_b->finished());
+}
+
+BOOST_AUTO_TEST_CASE( check_v )
+{
+   typedef ::std::shared_ptr<opthunk> op_ptr;
+   finishedq_t finishedq;
+   op_ptr top_a{opthunk::create("top_a", finishedq, nullptr, {})};
+   op_ptr top_b{opthunk::create("top_b", finishedq, nullptr, {})};
+   op_ptr bottom{opthunk::create("bottom", finishedq, nullptr, {top_a, top_b})};
+
+   BOOST_CHECK(!top_a->finished());
+   BOOST_CHECK(!top_b->finished());
+   BOOST_CHECK(!bottom->finished());
+   BOOST_CHECK(finishedq.empty());
+   top_a->set_finished();
+   BOOST_CHECK(top_a->finished());
+   BOOST_CHECK(!top_b->finished());
+   BOOST_CHECK(!bottom->finished());
+   {
+      auto correct = {"top_a"};
+      BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
+                                    correct.begin(), correct.end());
+   }
+   top_b->set_finished();
+   BOOST_CHECK(top_a->finished());
+   BOOST_CHECK(top_b->finished());
+   BOOST_CHECK(bottom->finished());
+   {
+      auto correct = {"top_a", "top_b", "bottom"};
+      BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
+                                    correct.begin(), correct.end());
+   }
+}
+
 BOOST_AUTO_TEST_SUITE_END()
 
 } // namespace test
