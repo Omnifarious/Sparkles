@@ -40,6 +40,29 @@ class opthunk : public operation_base {
       operation_base::set_finished();
    }
 
+   void remove_dependency(const opbase_ptr_t &dependency) {
+      if (dependency != nullptr) {
+         operation_base::remove_dependency(dependency);
+         if (!dependency->finished()) {
+            if (++depsfinished_ >= numdeps_) {
+               BOOST_CHECK_EQUAL(depsfinished_, numdeps_);
+               bool all_finished = true;
+               for_each_dependency(
+                  [&all_finished](const opbase_ptr_t &dep) -> void {
+                     if (!dep->finished()) all_finished = false;
+                  });
+               BOOST_CHECK(all_finished);
+               if (!finished()) {
+                  set_finished();
+               } else {
+                  BOOST_CHECK_EQUAL(num_dependencies(), 0);
+                  finishedq_.push_back(name_);
+               }
+            }
+         }
+      }
+   }
+
    static ::std::shared_ptr<opthunk>
    create(const ::std::string &name, finishedq_t &finishedq, bool *deleted,
           const ::std::initializer_list<opbase_ptr_t> &lst)
@@ -58,17 +81,12 @@ class opthunk : public operation_base {
                             << "\"->i_dependency_finished called with "
                             "unfinished dependency.");
       if (++depsfinished_ >= numdeps_) {
-         BOOST_CHECK_MESSAGE(depsfinished_ == numdeps_,
-                             depsfinished_ << " > " << numdeps_
-                             << "in \"" << name_
-                             << "\"->i_dependency_finished");
+         BOOST_CHECK_EQUAL(depsfinished_, numdeps_);
          bool all_finished = true;
          for_each_dependency([&all_finished](const opbase_ptr_t &dep) -> void {
                if (!dep->finished()) all_finished = false;
             });
-         BOOST_CHECK_MESSAGE(all_finished,
-                             "!all_finished in \"" << name_
-                             << "\"->i_dependency_finished");
+         BOOST_CHECK(all_finished);
          set_finished();
       }
    }
@@ -214,6 +232,105 @@ BOOST_AUTO_TEST_CASE( check_v )
    BOOST_CHECK(bottom->finished());
    {
       auto correct = {"top_a", "top_b", "bottom"};
+      BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
+                                    correct.begin(), correct.end());
+   }
+}
+
+BOOST_AUTO_TEST_CASE( remove_dep_bad )
+{
+   typedef ::std::shared_ptr<opthunk> op_ptr;
+   finishedq_t finishedq;
+   op_ptr top{opthunk::create("top", finishedq, nullptr, {})};
+   op_ptr bottom{opthunk::create("bottom", finishedq, nullptr, {top})};
+   BOOST_CHECK_THROW(top->remove_dependency(bottom), bad_dependency);
+   BOOST_CHECK(finishedq.empty());
+}
+
+BOOST_AUTO_TEST_CASE( remove_dep_good )
+{
+   typedef ::std::shared_ptr<opthunk> op_ptr;
+   finishedq_t finishedq;
+   op_ptr top{opthunk::create("top", finishedq, nullptr, {})};
+   op_ptr bottom{opthunk::create("bottom", finishedq, nullptr, {top})};
+   BOOST_CHECK_NO_THROW(bottom->remove_dependency(top));
+   {
+      auto correct = {"bottom"};
+      BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
+                                    correct.begin(), correct.end());
+   }
+}
+
+BOOST_AUTO_TEST_CASE( remove_dep_good_v_part_a )
+{
+   typedef ::std::shared_ptr<opthunk> op_ptr;
+   finishedq_t finishedq;
+   op_ptr top_a{opthunk::create("top_a", finishedq, nullptr, {})};
+   op_ptr top_b{opthunk::create("top_b", finishedq, nullptr, {})};
+   op_ptr bottom{opthunk::create("bottom", finishedq, nullptr, {top_a, top_b})};
+   BOOST_CHECK_NO_THROW(bottom->remove_dependency(top_a));
+   BOOST_CHECK(!top_b->finished());
+   BOOST_CHECK(!bottom->finished());
+   BOOST_CHECK(finishedq.empty());
+   top_b->set_finished();
+   BOOST_CHECK(top_b->finished());
+   BOOST_CHECK(bottom->finished());
+   {
+      auto correct = {"top_b", "bottom"};
+      BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
+                                    correct.begin(), correct.end());
+   }
+}
+
+BOOST_AUTO_TEST_CASE( remove_dep_good_v_part_b )
+{
+   typedef ::std::shared_ptr<opthunk> op_ptr;
+   finishedq_t finishedq;
+   op_ptr top_a{opthunk::create("top_a", finishedq, nullptr, {})};
+   op_ptr top_b{opthunk::create("top_b", finishedq, nullptr, {})};
+   op_ptr bottom{opthunk::create("bottom", finishedq, nullptr, {top_a, top_b})};
+   top_b->set_finished();
+   BOOST_CHECK(top_b->finished());
+   BOOST_CHECK(!bottom->finished());
+   {
+      auto correct = {"top_b"};
+      BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
+                                    correct.begin(), correct.end());
+   }
+   BOOST_CHECK_NO_THROW(bottom->remove_dependency(top_a));
+   BOOST_CHECK(top_b->finished());
+   BOOST_CHECK(bottom->finished());
+   {
+      auto correct = {"top_b", "bottom"};
+      BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
+                                    correct.begin(), correct.end());
+   }
+}
+
+BOOST_AUTO_TEST_CASE( diamond )
+{
+   typedef ::std::shared_ptr<opthunk> op_ptr;
+   finishedq_t finishedq;
+   op_ptr top{opthunk::create("top", finishedq, nullptr, {})};
+   op_ptr bottom;
+   {
+      op_ptr left{opthunk::create("left", finishedq, nullptr, {top})};
+      op_ptr right{opthunk::create("right", finishedq, nullptr, {top})};
+      bottom = opthunk::create("bottom", finishedq, nullptr, {left, right});
+   }
+   BOOST_CHECK(!top->finished());
+   BOOST_CHECK(!bottom->finished());
+   top->set_finished();
+   BOOST_CHECK(top->finished());
+   BOOST_CHECK(bottom->finished());
+   BOOST_REQUIRE_EQUAL(finishedq.size(), 4);
+   if (finishedq.at(1) == "left")
+   {
+      auto correct = {"top", "left", "right", "bottom"};
+      BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
+                                    correct.begin(), correct.end());
+   } else {
+      auto correct = {"top", "right", "left", "bottom"};
       BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
                                     correct.begin(), correct.end());
    }
