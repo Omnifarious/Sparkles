@@ -1,4 +1,5 @@
 #include "sparkles/operation.hpp"
+#include "sparkles/operation_base.hpp"
 
 namespace sparkles {
 
