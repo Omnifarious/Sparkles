@@ -112,18 +112,45 @@ class operation_base : public ::std::enable_shared_from_this<operation_base>
 
 //! An operation that returns a result.
 //
-// ResultType must be moveable or copyable. If it isn't moveable, it will be
-// copied.
+// ResultType must be copyable and default constructable.
+//
+// A result that is an exception can only be fetched once. After it is fetched
+// the first time, the result is rendered invalid.
+//
+// An invalid result can happen even after the operation is finished in two
+// cases. First, if the result was an exception and it was already
+// fetched. Secondly, if the operation was finished without setting a
+// result. The latter case can happen if all dependencies are removed.
 template <class ResultType>
 class operation : public operation_base
 {
  public:
    typedef typename ::std::remove_const<ResultType>::type result_t;
 
-   bool is_exception() const { return exception_ != nullptr; }
-   bool is_error() const { return is_error_; }
+   //! Is there a valid result of any kind?
+   bool is_valid() const { return is_valid_; }
+   //! Is the result an exception?
+   bool is_exception() const { return is_valid_ && (exception_ != nullptr); }
+   //! Is the result an error?
+   bool is_error() const { return is_valid_ && is_error_; }
 
+   //! Fetch the result.
+   //
+   // This results in the exception being re-thrown if the result is an
+   // exception and it hasn't already been re-thrown by a prior fetch.
+   //
+   // This will also result in a throw of ::std::system_error when the result is
+   // an error code.
+   //
+   // And if there is no result (i.e. is_valid() is false) an invalid_result
+   // exception will be thrown.
    result_t result();
+
+   //! Fetch the error code.
+   //
+   // If is_error() is true, this will fetch the error code, otherwise
+   // invalid_result will be thrown.
+   ::std::error_code error() const;
 
  protected:
    //! Construct an operation<ResultType> with the given set of dependencies
@@ -131,7 +158,7 @@ class operation : public operation_base
    operation(InputIterator dependencies_begin,
              const InputIterator &dependencies_end)
         : operation_base(dependencies_begin, dependencies_end),
-          is_error_(false), exception_(nullptr)
+          is_valid_(false), is_error_(false), exception_(nullptr)
    {
    }
 
@@ -154,25 +181,36 @@ template <class ResultType>
 typename operation<ResultType>::result_t operation<ResultType>::result()
 {
    if (!is_valid_) {
-      throw invalid_result("attempt to get an already fetched result.");
+      throw invalid_result("attempt to fetch a non-existent result.");
    } else if (is_error_) {
-      is_valid_ = false;
       throw ::std::system_error(error_, "Result was an error code");
    } else if (exception_ != nullptr) {
       ::std::exception_ptr local;
       local.swap(exception_);
+      // Exceptions can only be fetched once!
       is_valid_ = false;
       ::std::rethrow_exception(local);
    } else {
-      is_valid_ = false;
-      return ::std::move(result_);
+      return result_;
+   }
+}
+
+template <class ResultType>
+::std::error_code operation<ResultType>::error() const
+{
+   if (!is_valid_) {
+      throw invalid_result("attempt to fetch a non-existent result.");
+   } else if (!is_error_) {
+      throw invalid_result("Tried to fetch error code when result isn't an error code.");
+   } else {
+      return error_;
    }
 }
 
 template <class ResultType>
 void operation<ResultType>::set_result(operation<ResultType>::result_t result)
 {
-   if (is_valid_) {
+   if (is_valid_ || finished()) {
       throw invalid_result("Attempt to set a result that's already been set.");
    } else {
       result_ = ::std::move(result);
@@ -189,7 +227,7 @@ void operation<ResultType>::set_result(::std::exception_ptr exception)
 {
    if (exception == nullptr) {
       throw ::std::invalid_argument("Cannot set a null exception result.");
-   } else if (is_valid_) {
+   } else if (is_valid_ || finished()) {
       throw invalid_result("Attempt to set a result that's already been set.");
    } else {
       exception_ = exception;
@@ -204,11 +242,13 @@ void operation<ResultType>::set_result(::std::error_code error)
 {
    if (error == ::std::error_code()) {
       throw ::std::invalid_argument("Cannot set a no-error error result.");
-   } else if (is_valid_) {
+   } else if (is_valid_ || finished()) {
       throw invalid_result("Attempt to set a result that's already been set.");
    } else {
       error_ = error;
+      is_valid_ = true;
       is_error_ = true;
+      delete exception_;
       exception_ = nullptr;
       set_finished();
    }
