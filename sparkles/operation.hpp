@@ -93,6 +93,11 @@ class operation_base : public ::std::enable_shared_from_this<operation_base>
       }
    }
 
+   //! How many dependencies are there?
+   ::std::unordered_set<opbase_ptr_t>::size_type num_dependencies() {
+      return dependencies_.size();
+   }
+
    //! A dependency has gone from not finished to finished.
    virtual void i_dependency_finished(const opbase_ptr_t &dependency) = 0;
 
