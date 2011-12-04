@@ -82,8 +82,9 @@ class operation_base : public ::std::enable_shared_from_this<operation_base>
    // adding isn't) because deleting edges cannot be used to create a cycle,
    // wheres adding them can.
    //
-   // This will result in set_finished being called if finished_ isn't already
-   // true and the last dependency has been removed.
+   // If you've removed the last dependency, realize that there will be no
+   // trigger for finishing you operation and you may want to consider finishing
+   // it yourself at that point.
    void remove_dependency(const opbase_ptr_t &dependency) {
       auto deppos = dependencies_.find(dependency);
       if (deppos == dependencies_.end()) {
@@ -125,7 +126,8 @@ class operation_base : public ::std::enable_shared_from_this<operation_base>
 // An invalid result can happen even after the operation is finished in two
 // cases. First, if the result was an exception and it was already
 // fetched. Secondly, if the operation was finished without setting a
-// result. The latter case can happen if all dependencies are removed.
+// result. The second case is much rarer, and likely represents a programming
+// error.
 template <class ResultType>
 class operation : public operation_base
 {

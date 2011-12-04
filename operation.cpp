@@ -68,9 +68,6 @@ void operation_base::remove_dependency(
       dependencies_.erase(deppos);
       dep->remove_dependent(this);
    }
-   if ((dependencies_.size() <= 0) and !finished_) {
-      set_finished();
-   }
 }
 
 operation_base::~operation_base()
