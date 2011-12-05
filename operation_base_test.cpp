@@ -9,7 +9,7 @@
 namespace sparkles {
 namespace test {
 
-BOOST_AUTO_TEST_SUITE(operation_test)
+BOOST_AUTO_TEST_SUITE(operation_base_test)
 
 typedef ::std::vector< ::std::string> finishedq_t;
 
