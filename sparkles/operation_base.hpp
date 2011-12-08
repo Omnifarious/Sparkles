@@ -96,6 +96,10 @@ class operation_base : public ::std::enable_shared_from_this<operation_base>
    }
 
    //! A dependency has gone from not finished to finished.
+   //
+   // This is THE function to override. This will allow you to determine that
+   // you have all the information available to carry out your computation and
+   // tell \b your dependents that you've finished.
    virtual void i_dependency_finished(const opbase_ptr_t &dependency) = 0;
 
  private:
