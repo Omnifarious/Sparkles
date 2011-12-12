@@ -24,6 +24,7 @@ class operation : public operation_base
 {
  public:
    typedef typename ::std::remove_const<ResultType>::type result_t;
+   typedef ::std::shared_ptr<operation<ResultType> > ptr_t;
 
    //! Is there a valid result of any kind?
    bool is_valid() const { return is_valid_; }
