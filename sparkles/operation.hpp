@@ -136,7 +136,6 @@ void operation<ResultType>::set_result(operation<ResultType>::result_t result)
       result_ = ::std::move(result);
       is_valid_ = true;
       is_error_ = false;
-      delete exception_;
       exception_ = nullptr;
       set_finished();
    }
@@ -168,7 +167,6 @@ void operation<ResultType>::set_result(::std::error_code error)
       error_ = error;
       is_valid_ = true;
       is_error_ = true;
-      delete exception_;
       exception_ = nullptr;
       set_finished();
    }
