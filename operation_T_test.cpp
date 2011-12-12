@@ -6,6 +6,8 @@
 #include <memory>
 #include <utility>
 #include <exception>
+#include <stdexcept>
+#include <string>
 
 namespace sparkles {
 namespace test {
@@ -13,6 +15,11 @@ namespace test {
 BOOST_AUTO_TEST_SUITE(operation_T_test)
 
 typedef ::std::vector< ::std::string> finishedq_t;
+
+class test_exception : public ::std::runtime_error {
+ public:
+   test_exception(const ::std::string &reason) : runtime_error(reason) { }
+};
 
 template <typename ResultType>
 class base_testop : public operation<ResultType> {
@@ -72,7 +79,16 @@ class nodep_op : public base_testop<ResultType> {
    {
    }
 
-   using baseclass_t::set_result;
+
+   void set_result(result_t result) {
+      baseclass_t::set_result(::std::move(result));
+   }
+   void set_result(::std::exception_ptr result) {
+      baseclass_t::set_result(::std::move(result));
+   }
+   void set_result(::std::error_code result) {
+      baseclass_t::set_result(::std::move(result));
+   }
 
    static ptr_t
    create(const ::std::string &name, finishedq_t &finishedq, bool *deleted)
@@ -159,7 +175,7 @@ class op_add : public base_testop<ResultType>
       } else {
          throw ::std::runtime_error("A dependency I don't have finished.");
       }
-      if (found_error && arg1_->finished() && arg2_->finished()) {
+      if (!found_error && arg1_->finished() && arg2_->finished()) {
          try {
             result_t result = arg1_->result() + arg2_->result();
             this->set_result(::std::move(result));
@@ -202,6 +218,80 @@ BOOST_AUTO_TEST_CASE( construct_empty )
       auto adder = make_add<int, int>("adder", finishedq, nullptr, arg1, arg2);
    };
    BOOST_CHECK_NO_THROW(nested());
+}
+
+BOOST_AUTO_TEST_CASE( test_normal )
+{
+   finishedq_t finishedq;
+   bool arg1_gone = false;
+   nodep_op<int>::ptr_t arg1(nodep_op<int>::create("arg1",
+                                                   finishedq, &arg1_gone));
+   bool arg2_gone = false;
+   nodep_op<int>::ptr_t arg2(nodep_op<int>::create("arg2",
+                                                   finishedq, &arg2_gone));
+   bool adder_gone = false;
+   auto adder = make_add<int, int>("adder", finishedq, &adder_gone, arg1, arg2);
+   BOOST_CHECK(!arg1->finished());
+   BOOST_CHECK(!arg2->finished());
+   BOOST_CHECK(!adder->finished());
+   arg1->set_result(5);
+   BOOST_CHECK(arg1->finished());
+   BOOST_CHECK(!arg2->finished());
+   BOOST_CHECK(!adder->finished());
+   BOOST_CHECK_EQUAL(arg1->result(), 5);
+   arg2->set_result(7);
+   BOOST_CHECK(arg1->finished());
+   BOOST_CHECK(arg2->finished());
+   BOOST_CHECK(adder->finished());
+   BOOST_CHECK_EQUAL(arg2->result(), 7);
+   BOOST_CHECK_EQUAL(adder->result(), 12);
+   BOOST_CHECK(!arg1_gone);
+   arg1.reset();
+   BOOST_CHECK(arg1_gone);
+   BOOST_CHECK(!arg2_gone);
+   arg2.reset();
+   BOOST_CHECK(arg2_gone);
+   BOOST_CHECK(!adder_gone);
+   adder.reset();
+   BOOST_CHECK(adder_gone);
+   auto correct = {"arg1", "arg2", "adder"};
+   BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
+                                 correct.begin(), correct.end());
+}
+
+BOOST_AUTO_TEST_CASE( test_except )
+{
+   finishedq_t finishedq;
+   bool arg1_gone = false;
+   nodep_op<int>::ptr_t arg1(nodep_op<int>::create("arg1",
+                                                   finishedq, &arg1_gone));
+   bool arg2_gone = false;
+   nodep_op<int>::ptr_t arg2(nodep_op<int>::create("arg2",
+                                                   finishedq, &arg2_gone));
+   bool adder_gone = false;
+   auto adder = make_add<int, int>("adder", finishedq, &adder_gone, arg1, arg2);
+
+   BOOST_CHECK(!arg1->finished());
+   BOOST_CHECK(!arg2->finished());
+   BOOST_CHECK(!adder->finished());
+   try {
+      throw test_exception("This should be stored.");
+   } catch (...) {
+      BOOST_CHECK(!arg1->finished());
+      BOOST_CHECK(!arg1->is_valid());
+      arg1->set_result(::std::current_exception());
+   }
+   BOOST_CHECK(arg1->finished());
+   BOOST_CHECK(!arg2->finished());
+   BOOST_CHECK(adder->finished());
+
+   arg1.reset();
+   BOOST_CHECK(arg1_gone);
+   arg2.reset();
+   BOOST_CHECK(arg2_gone);
+   BOOST_CHECK(adder->is_exception());
+   BOOST_CHECK(!adder->is_error());
+   BOOST_CHECK_THROW(adder->result(), test_exception);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
