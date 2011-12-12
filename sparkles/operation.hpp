@@ -50,6 +50,15 @@ class operation : public operation_base
    // invalid_result will be thrown.
    ::std::error_code error() const;
 
+   //! Fetch the ::std::exception_ptr of the exception (if any).
+   //
+   // This returns the ::std::exception_ptr for the exception being held if
+   // there is one. If is_exception() returns false, this will throw
+   // invalid_result.
+   //
+   // This is needed in order to implement forwarding or wrapping operations.
+   ::std::exception_ptr exception() const;
+
  protected:
    //! Construct an operation<ResultType> with the given set of dependencies
    template <class InputIterator>
@@ -102,6 +111,18 @@ template <class ResultType>
       throw invalid_result("Tried to fetch error code when result isn't an error code.");
    } else {
       return error_;
+   }
+}
+
+template <class ResultType>
+::std::exception_ptr operation<ResultType>::exception() const
+{
+   if (!is_valid_) {
+      throw invalid_result("attempt to fetch a non-existent result.");
+   } else if (is_error_ || (exception_ == nullptr)) {
+      throw invalid_result("Tried to fetch an exception when result isn't an exception.");
+   } else {
+      return exception_;
    }
 }
 
