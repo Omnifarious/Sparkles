@@ -384,6 +384,74 @@ BOOST_AUTO_TEST_CASE( test_except_adder )
                                  correct.begin(), correct.end());
 }
 
+BOOST_AUTO_TEST_CASE( test_error_arg1 )
+{
+   finishedq_t finishedq;
+   bool arg1_gone = false;
+   nodep_op<int>::ptr_t arg1(nodep_op<int>::create("arg1",
+                                                   finishedq, &arg1_gone));
+   bool arg2_gone = false;
+   nodep_op<int>::ptr_t arg2(nodep_op<int>::create("arg2",
+                                                   finishedq, &arg2_gone));
+   bool adder_gone = false;
+   auto adder = make_add<int, int>("adder", finishedq, &adder_gone, arg1, arg2);
+
+   BOOST_CHECK(!arg1->finished());
+   BOOST_CHECK(!arg2->finished());
+   BOOST_CHECK(!adder->finished());
+   arg1->set_bad_result(make_error_code(test_error::some_error));
+   BOOST_CHECK(arg1->finished());
+   BOOST_CHECK(!arg2->finished());
+   BOOST_CHECK(adder->finished());
+
+   arg1.reset();
+   BOOST_CHECK(arg1_gone);
+   arg2.reset();
+   BOOST_CHECK(arg2_gone);
+   BOOST_CHECK(!adder->is_exception());
+   BOOST_CHECK(adder->is_error());
+   BOOST_CHECK_THROW(adder->result(), ::std::system_error);
+   BOOST_CHECK_EQUAL(adder->error(), make_error_code(test_error::some_error));
+   BOOST_CHECK_THROW(adder->exception(), invalid_result);
+   auto correct = {"arg1", "adder"};
+   BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
+                                 correct.begin(), correct.end());
+}
+
+BOOST_AUTO_TEST_CASE( test_error_arg2 )
+{
+   finishedq_t finishedq;
+   bool arg1_gone = false;
+   nodep_op<int>::ptr_t arg1(nodep_op<int>::create("arg1",
+                                                   finishedq, &arg1_gone));
+   bool arg2_gone = false;
+   nodep_op<int>::ptr_t arg2(nodep_op<int>::create("arg2",
+                                                   finishedq, &arg2_gone));
+   bool adder_gone = false;
+   auto adder = make_add<int, int>("adder", finishedq, &adder_gone, arg1, arg2);
+
+   BOOST_CHECK(!arg1->finished());
+   BOOST_CHECK(!arg2->finished());
+   BOOST_CHECK(!adder->finished());
+   arg2->set_bad_result(make_error_code(test_error::some_error));
+   BOOST_CHECK(!arg1->finished());
+   BOOST_CHECK(arg2->finished());
+   BOOST_CHECK(adder->finished());
+
+   arg1.reset();
+   BOOST_CHECK(arg1_gone);
+   arg2.reset();
+   BOOST_CHECK(arg2_gone);
+   BOOST_CHECK(!adder->is_exception());
+   BOOST_CHECK(adder->is_error());
+   BOOST_CHECK_THROW(adder->result(), ::std::system_error);
+   BOOST_CHECK_EQUAL(adder->error(), make_error_code(test_error::some_error));
+   BOOST_CHECK_THROW(adder->exception(), invalid_result);
+   auto correct = {"arg2", "adder"};
+   BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
+                                 correct.begin(), correct.end());
+}
+
 BOOST_AUTO_TEST_SUITE_END()
 
 } // namespace test
