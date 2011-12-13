@@ -71,8 +71,8 @@ class operation : public operation_base
    }
 
    void set_result(result_t result);
-   void set_result(::std::exception_ptr exception);
-   void set_result(::std::error_code error);
+   void set_bad_result(::std::exception_ptr exception);
+   void set_bad_result(::std::error_code error);
 
  private:
    bool is_valid_, is_error_;
@@ -138,7 +138,7 @@ void operation<ResultType>::set_result(operation<ResultType>::result_t result)
 }
 
 template <class ResultType>
-void operation<ResultType>::set_result(::std::exception_ptr exception)
+void operation<ResultType>::set_bad_result(::std::exception_ptr exception)
 {
    if (exception == nullptr) {
       throw ::std::invalid_argument("Cannot set a null exception result.");
@@ -153,7 +153,7 @@ void operation<ResultType>::set_result(::std::exception_ptr exception)
 }
 
 template <class ResultType>
-void operation<ResultType>::set_result(::std::error_code error)
+void operation<ResultType>::set_bad_result(::std::error_code error)
 {
    if (error == ::std::error_code()) {
       throw ::std::invalid_argument("Cannot set a no-error error result.");

@@ -45,15 +45,15 @@ class base_testop : public operation<ResultType> {
       finishedq_.push_back(name_);
       baseclass_t::set_result(::std::move(result));
    }
-   void set_result(::std::exception_ptr exception)
+   void set_bad_result(::std::exception_ptr exception)
    {
       finishedq_.push_back(name_);
-      baseclass_t::set_result(::std::move(exception));
+      baseclass_t::set_bad_result(::std::move(exception));
    }
-   void set_result(::std::error_code error)
+   void set_bad_result(::std::error_code error)
    {
       finishedq_.push_back(name_);
-      baseclass_t::set_result(::std::move(error));
+      baseclass_t::set_bad_result(::std::move(error));
    }
 
  private:
@@ -83,11 +83,11 @@ class nodep_op : public base_testop<ResultType> {
    void set_result(result_t result) {
       baseclass_t::set_result(::std::move(result));
    }
-   void set_result(::std::exception_ptr result) {
-      baseclass_t::set_result(::std::move(result));
+   void set_bad_result(::std::exception_ptr result) {
+      baseclass_t::set_bad_result(::std::move(result));
    }
-   void set_result(::std::error_code result) {
-      baseclass_t::set_result(::std::move(result));
+   void set_bad_result(::std::error_code result) {
+      baseclass_t::set_bad_result(::std::move(result));
    }
 
    static ptr_t
@@ -159,18 +159,18 @@ class op_add : public base_testop<ResultType>
       if (dependency == arg1_) {
          if (arg1_->is_exception()) {
             found_error = true;
-            set_result(arg1_->exception());
+            set_bad_result(arg1_->exception());
          } else if (arg1_->is_error()) {
             found_error = true;
-            set_result(arg1_->error());
+            set_bad_result(arg1_->error());
          }
       } else if (dependency == arg2_) {
          if (arg2_->is_exception()) {
             found_error = true;
-            set_result(arg2_->exception());
+            set_bad_result(arg2_->exception());
          } else if (arg2_->is_error()) {
             found_error = true;
-            set_result(arg2_->error());
+            set_bad_result(arg2_->error());
          }
       } else {
          throw ::std::runtime_error("A dependency I don't have finished.");
@@ -180,7 +180,7 @@ class op_add : public base_testop<ResultType>
             result_t result = arg1_->result() + arg2_->result();
             this->set_result(::std::move(result));
          } catch (...) {
-            this->set_result(::std::current_exception());
+            this->set_bad_result(::std::current_exception());
          }
       }
       if (this->finished()) {
@@ -279,7 +279,7 @@ BOOST_AUTO_TEST_CASE( test_except_arg1 )
    } catch (...) {
       BOOST_CHECK(!arg1->finished());
       BOOST_CHECK(!arg1->is_valid());
-      arg1->set_result(::std::current_exception());
+      arg1->set_bad_result(::std::current_exception());
    }
    BOOST_CHECK(arg1->finished());
    BOOST_CHECK(!arg2->finished());
@@ -317,7 +317,7 @@ BOOST_AUTO_TEST_CASE( test_except_arg2 )
    } catch (...) {
       BOOST_CHECK(!arg2->finished());
       BOOST_CHECK(!arg2->is_valid());
-      arg2->set_result(::std::current_exception());
+      arg2->set_bad_result(::std::current_exception());
    }
    BOOST_CHECK(!arg1->finished());
    BOOST_CHECK(arg2->finished());
