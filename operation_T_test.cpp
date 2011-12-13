@@ -1,3 +1,5 @@
+#include "test_error.hpp"
+
 #include <sparkles/operation.hpp>
 
 #include <boost/test/unit_test.hpp>
@@ -15,11 +17,6 @@ namespace test {
 BOOST_AUTO_TEST_SUITE(operation_T_test)
 
 typedef ::std::vector< ::std::string> finishedq_t;
-
-class test_exception : public ::std::runtime_error {
- public:
-   test_exception(const ::std::string &reason) : runtime_error(reason) { }
-};
 
 template <typename ResultType>
 class base_testop : public operation<ResultType> {
