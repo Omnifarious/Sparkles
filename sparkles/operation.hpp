@@ -80,7 +80,7 @@ class operation : public operation_base
    ::std::exception_ptr exception_;
    ::std::error_code error_;
 
-   using operation_base::set_finished;
+   void set_finished() { operation_base::set_finished(); }
 
    virtual void i_dependency_finished(const opbase_ptr_t &dependency) = 0;
 };
