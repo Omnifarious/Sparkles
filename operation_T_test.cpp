@@ -259,7 +259,7 @@ BOOST_AUTO_TEST_CASE( test_normal )
                                  correct.begin(), correct.end());
 }
 
-BOOST_AUTO_TEST_CASE( test_except )
+BOOST_AUTO_TEST_CASE( test_except_arg1 )
 {
    finishedq_t finishedq;
    bool arg1_gone = false;
@@ -292,6 +292,90 @@ BOOST_AUTO_TEST_CASE( test_except )
    BOOST_CHECK(adder->is_exception());
    BOOST_CHECK(!adder->is_error());
    BOOST_CHECK_THROW(adder->result(), test_exception);
+   auto correct = {"arg1", "adder"};
+   BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
+                                 correct.begin(), correct.end());
+}
+
+BOOST_AUTO_TEST_CASE( test_except_arg2 )
+{
+   finishedq_t finishedq;
+   bool arg1_gone = false;
+   nodep_op<int>::ptr_t arg1(nodep_op<int>::create("arg1",
+                                                   finishedq, &arg1_gone));
+   bool arg2_gone = false;
+   nodep_op<int>::ptr_t arg2(nodep_op<int>::create("arg2",
+                                                   finishedq, &arg2_gone));
+   bool adder_gone = false;
+   auto adder = make_add<int, int>("adder", finishedq, &adder_gone, arg1, arg2);
+
+   BOOST_CHECK(!arg1->finished());
+   BOOST_CHECK(!arg2->finished());
+   BOOST_CHECK(!adder->finished());
+   try {
+      throw test_exception("This should be stored.");
+   } catch (...) {
+      BOOST_CHECK(!arg2->finished());
+      BOOST_CHECK(!arg2->is_valid());
+      arg2->set_result(::std::current_exception());
+   }
+   BOOST_CHECK(!arg1->finished());
+   BOOST_CHECK(arg2->finished());
+   BOOST_CHECK(adder->finished());
+
+   arg1.reset();
+   BOOST_CHECK(arg1_gone);
+   arg2.reset();
+   BOOST_CHECK(arg2_gone);
+   BOOST_CHECK(adder->is_exception());
+   BOOST_CHECK(!adder->is_error());
+   BOOST_CHECK_THROW(adder->result(), test_exception);
+   auto correct = {"arg2", "adder"};
+   BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
+                                 correct.begin(), correct.end());
+}
+
+struct except_on_add {
+};
+
+except_on_add operator +(const except_on_add &, const except_on_add &)
+{
+   throw test_exception("Adding failed!");
+}
+
+BOOST_AUTO_TEST_CASE( test_except_adder )
+{
+   finishedq_t finishedq;
+   bool arg1_gone = false;
+   nodep_op<except_on_add>::ptr_t arg1(
+      nodep_op<except_on_add>::create("arg1", finishedq, &arg1_gone)
+      );
+   bool arg2_gone = false;
+   nodep_op<except_on_add>::ptr_t arg2(
+      nodep_op<except_on_add>::create("arg2", finishedq, &arg2_gone)
+      );
+   bool adder_gone = false;
+   auto adder = make_add<except_on_add, except_on_add>("adder",
+                                                       finishedq,
+                                                       &adder_gone,
+                                                       arg1, arg2);
+
+   BOOST_CHECK(!arg1->finished());
+   BOOST_CHECK(!arg2->finished());
+   BOOST_CHECK(!adder->finished());
+   arg1->set_result(except_on_add{});
+   BOOST_CHECK(arg1->finished());
+   BOOST_CHECK(!arg2->finished());
+   BOOST_CHECK(!adder->finished());
+   arg2->set_result(except_on_add());
+   BOOST_CHECK(arg1->finished());
+   BOOST_CHECK(arg2->finished());
+   BOOST_CHECK(adder->finished());
+   BOOST_CHECK_THROW(adder->result(), test_exception);
+   BOOST_CHECK_THROW(adder->result(), test_exception);
+   auto correct = {"arg1", "arg2", "adder"};
+   BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
+                                 correct.begin(), correct.end());
 }
 
 BOOST_AUTO_TEST_SUITE_END()
