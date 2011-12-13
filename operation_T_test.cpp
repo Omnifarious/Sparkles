@@ -1,5 +1,6 @@
 #include "test_error.hpp"
 
+#include <sparkles/errors.hpp>
 #include <sparkles/operation.hpp>
 
 #include <boost/test/unit_test.hpp>
@@ -242,6 +243,8 @@ BOOST_AUTO_TEST_CASE( test_normal )
    BOOST_CHECK(adder->finished());
    BOOST_CHECK_EQUAL(arg2->result(), 7);
    BOOST_CHECK_EQUAL(adder->result(), 12);
+   BOOST_CHECK_THROW(adder->error(), invalid_result);
+   BOOST_CHECK_THROW(adder->exception(), invalid_result);
    BOOST_CHECK(!arg1_gone);
    arg1.reset();
    BOOST_CHECK(arg1_gone);
@@ -289,6 +292,8 @@ BOOST_AUTO_TEST_CASE( test_except_arg1 )
    BOOST_CHECK(adder->is_exception());
    BOOST_CHECK(!adder->is_error());
    BOOST_CHECK_THROW(adder->result(), test_exception);
+   BOOST_CHECK_THROW(adder->error(), invalid_result);
+   BOOST_CHECK_NO_THROW(adder->exception());
    auto correct = {"arg1", "adder"};
    BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
                                  correct.begin(), correct.end());
@@ -327,6 +332,8 @@ BOOST_AUTO_TEST_CASE( test_except_arg2 )
    BOOST_CHECK(adder->is_exception());
    BOOST_CHECK(!adder->is_error());
    BOOST_CHECK_THROW(adder->result(), test_exception);
+   BOOST_CHECK_THROW(adder->error(), invalid_result);
+   BOOST_CHECK_NO_THROW(adder->exception());
    auto correct = {"arg2", "adder"};
    BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
                                  correct.begin(), correct.end());
@@ -370,6 +377,8 @@ BOOST_AUTO_TEST_CASE( test_except_adder )
    BOOST_CHECK(adder->finished());
    BOOST_CHECK_THROW(adder->result(), test_exception);
    BOOST_CHECK_THROW(adder->result(), test_exception);
+   BOOST_CHECK_THROW(adder->error(), invalid_result);
+   BOOST_CHECK_NO_THROW(adder->exception());
    auto correct = {"arg1", "arg2", "adder"};
    BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
                                  correct.begin(), correct.end());
