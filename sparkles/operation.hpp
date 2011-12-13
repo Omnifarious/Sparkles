@@ -93,11 +93,7 @@ typename operation<ResultType>::result_t operation<ResultType>::result()
    } else if (is_error_) {
       throw ::std::system_error(error_, "Result was an error code");
    } else if (exception_ != nullptr) {
-      ::std::exception_ptr local;
-      local.swap(exception_);
-      // Exceptions can only be fetched once!
-      is_valid_ = false;
-      ::std::rethrow_exception(local);
+      ::std::rethrow_exception(exception_);
    } else {
       return result_;
    }
