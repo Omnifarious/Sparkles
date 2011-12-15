@@ -4,7 +4,7 @@ LIBCPP = $(filter-out %_test.cpp,$(CPPFILES))
 
 CPPFLAGS = -I.
 CXX = g++ -std=c++0x -pedantic
-CXXFLAGS = -O0 -ggdb -Wall -Wextra
+CXXFLAGS = -O0 -ggdb -Wall -Wextra -pthread
 
 %.o : %.cpp empty
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $(<) -o $(@)
