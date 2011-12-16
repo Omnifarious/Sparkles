@@ -1,4 +1,6 @@
+ // Required to make ::std::this_thread::sleep_for work.
 #define _GLIBCXX_USE_NANOSLEEP
+
 #include <sparkles/semaphore.hpp>
 
 #include <boost/test/unit_test.hpp>
