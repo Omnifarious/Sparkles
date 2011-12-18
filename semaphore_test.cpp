@@ -43,8 +43,6 @@ BOOST_AUTO_TEST_CASE( ping_pong_one )
          ping_sem.acquire();
          atomic_fetch_add(&ping, 1);
          atomic_fetch_sub(&pong, 1);
-         BOOST_REQUIRE_EQUAL(ping, 1);
-         BOOST_REQUIRE_EQUAL(pong, 0);
          pong_sem.release();
       }
       ping_finished.test_and_set();
@@ -52,7 +50,6 @@ BOOST_AUTO_TEST_CASE( ping_pong_one )
    BOOST_REQUIRE_EQUAL(ping, 1);
    BOOST_REQUIRE_EQUAL(pong, 0);
    ::std::thread ping_thread(ping_func);
-   ping_thread.detach();
    for (int i = 0; i < 10000; ++i) {
       pong_sem.acquire();
       atomic_fetch_sub(&ping, 1);
@@ -68,6 +65,8 @@ BOOST_AUTO_TEST_CASE( ping_pong_one )
    // that that I can find.
    ::std::this_thread::sleep_for(::std::chrono::milliseconds(20));
    BOOST_REQUIRE(ping_finished.test_and_set());
+   BOOST_REQUIRE(ping_thread.joinable());
+   ping_thread.join();
 }
 
 BOOST_AUTO_TEST_CASE( ping_pong_five )
@@ -80,12 +79,8 @@ BOOST_AUTO_TEST_CASE( ping_pong_five )
    auto ping_func = [&]() {
       for (int i = 0; i < 10000; ++i) {
          ping_sem.acquire();
-         int myping = atomic_fetch_add(&ping, 1) + 1;
-         int mypong = atomic_fetch_sub(&pong, 1) - 1;
-         BOOST_REQUIRE_LE(myping, 5);
-         BOOST_REQUIRE_GT(myping, 0);
-         BOOST_REQUIRE_LT(mypong, 5);
-         BOOST_REQUIRE_GE(mypong, 0);
+         atomic_fetch_add(&ping, 1);
+         atomic_fetch_sub(&pong, 1);
          pong_sem.release();
       }
       ping_finished.test_and_set();
@@ -93,7 +88,6 @@ BOOST_AUTO_TEST_CASE( ping_pong_five )
    BOOST_REQUIRE_EQUAL(ping, 5);
    BOOST_REQUIRE_EQUAL(pong, 0);
    ::std::thread ping_thread(ping_func);
-   ping_thread.detach();
    for (int i = 0; i < 10000; ++i) {
       pong_sem.acquire();
       int myping = atomic_fetch_sub(&ping, 1) - 1;
@@ -111,6 +105,8 @@ BOOST_AUTO_TEST_CASE( ping_pong_five )
    // that that I can find.
    ::std::this_thread::sleep_for(::std::chrono::milliseconds(20));
    BOOST_REQUIRE(ping_finished.test_and_set());
+   BOOST_REQUIRE(ping_thread.joinable());
+   ping_thread.join();
    {
       int myping = atomic_load(&ping);
       int mypong = atomic_load(&pong);
