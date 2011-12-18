@@ -9,6 +9,12 @@ namespace sparkles {
 //
 // Currently uses semaphores and mutexes. Hopefully this will use a lock-free
 // implementation in the future.
+//
+// Having multiple threads dequeueing things from this at the same time will
+// result in undefined behavior.
+//
+// Destroying the queue while someone is trying to read from it or write to it
+// in another thread also results in undefined behavior.
 class work_queue {
  public:
    typedef ::std::function<void ()> work_item_t;
