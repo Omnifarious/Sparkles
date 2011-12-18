@@ -12,6 +12,8 @@
 #include <thread>
 #include <utility>
 #include <chrono>
+#include <vector>
+#include <algorithm>
 
 namespace sparkles {
 namespace test {
@@ -142,6 +144,67 @@ BOOST_AUTO_TEST_CASE( dequeue_blocks )
    BOOST_CHECK(::std::atomic_load(&ran));
    BOOST_REQUIRE(reading_thread.joinable());
    reading_thread.join();
+}
+
+BOOST_AUTO_TEST_CASE( stress_test )
+{
+   constexpr int num_enqueues = 1 << 20;
+   using ::std::ref;
+   auto execute = [](int &result, int val) -> void {
+      result = val;
+   };
+   auto mass_enqueue = \
+      [&execute](work_queue &wq, int &result, int quantity) -> void
+      {
+         for (int i = 0; i < quantity; ++i) {
+            if ((i + 1) % 7 != 0) {
+               wq.enqueue(::std::bind(execute, ref(result), i));
+            } else {
+               wq.enqueue(::std::bind(execute, ref(result), i + (1 << 24)),
+                          true);
+            }
+         }
+      };
+   ::std::vector<int> results;
+   int current_result;
+   work_queue wq;
+   results.reserve(num_enqueues);
+   ::std::thread enqueueing_thread(mass_enqueue, ref(wq),
+                                   ref(current_result), num_enqueues);
+   for (int i = 0; i < num_enqueues; ++i) {
+      BOOST_TEST_CHECKPOINT("Dequeue #" << i);
+      wq.dequeue()();
+      results.push_back(current_result);
+   }
+   ::std::this_thread::yield();
+   ::std::this_thread::sleep_for(::std::chrono::milliseconds(20));
+   work_queue::work_item_t item;
+   BOOST_CHECK(!wq.try_dequeue(item));
+   {
+      int last_oob = -1;
+      int last_normal = -1;
+      for (int &result: results) {
+         if (result >= (1 << 24)) {
+            BOOST_CHECK_GT(result, last_oob);
+            last_oob = result;
+            result = result & ((1 << 24) - 1);
+         } else {
+            BOOST_CHECK_GT(result, last_normal);
+            last_normal = result;
+         }
+      }
+   }
+   ::std::sort(results.begin(), results.end());
+   {
+      int last_num = -1;
+      for (const int &result: results) {
+         BOOST_CHECK_EQUAL(last_num + 1, result);
+         last_num = result;
+      }
+   }
+   BOOST_CHECK(!wq.try_dequeue(item));
+   BOOST_REQUIRE(enqueueing_thread.joinable());
+   enqueueing_thread.join();
 }
 
 BOOST_AUTO_TEST_SUITE_END()
