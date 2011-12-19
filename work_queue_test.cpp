@@ -154,9 +154,11 @@ BOOST_AUTO_TEST_CASE( stress_test )
       result = val;
    };
    auto mass_enqueue = \
-      [&execute](work_queue &wq, int &result, int quantity) -> void
+      [&execute](work_queue &wq, int &result,
+                 int quantity, int start, int skip)
+      -> void
       {
-         for (int i = 0; i < quantity; ++i) {
+         for (int i = start; i < quantity; i += skip) {
             if ((i + 1) % 7 != 0) {
                wq.enqueue(::std::bind(execute, ref(result), i));
             } else {
@@ -169,8 +171,12 @@ BOOST_AUTO_TEST_CASE( stress_test )
    int current_result;
    work_queue wq;
    results.reserve(num_enqueues);
-   ::std::thread enqueueing_thread(mass_enqueue, ref(wq),
-                                   ref(current_result), num_enqueues);
+   ::std::thread enqueueing_thread1(mass_enqueue, ref(wq),
+                                    ref(current_result), num_enqueues, 0, 3);
+   ::std::thread enqueueing_thread2(mass_enqueue, ref(wq),
+                                    ref(current_result), num_enqueues, 1, 3);
+   ::std::thread enqueueing_thread3(mass_enqueue, ref(wq),
+                                    ref(current_result), num_enqueues, 2, 3);
    for (int i = 0; i < num_enqueues; ++i) {
       BOOST_TEST_CHECKPOINT("Dequeue #" << i);
       wq.dequeue()();
@@ -181,17 +187,17 @@ BOOST_AUTO_TEST_CASE( stress_test )
    work_queue::work_item_t item;
    BOOST_CHECK(!wq.try_dequeue(item));
    {
-      int last_oob = -1;
-      int last_normal = -1;
+      int last_result = -1;
       for (int &result: results) {
-         if (result >= (1 << 24)) {
-            BOOST_CHECK_GT(result, last_oob);
-            last_oob = result;
-            result = result & ((1 << 24) - 1);
-         } else {
-            BOOST_CHECK_GT(result, last_normal);
-            last_normal = result;
+         if (result < last_result) {
+            if (((result % 3) == (last_result % 3)) && \
+                ((result >= (1 << 24)) || (last_result < (1 << 24))))
+            {
+               BOOST_CHECK_GT(result, last_result);
+            }
          }
+         last_result = result;
+         result &= ((1 << 24) - 1);
       }
    }
    ::std::sort(results.begin(), results.end());
@@ -202,9 +208,18 @@ BOOST_AUTO_TEST_CASE( stress_test )
          last_num = result;
       }
    }
+
    BOOST_CHECK(!wq.try_dequeue(item));
-   BOOST_REQUIRE(enqueueing_thread.joinable());
-   enqueueing_thread.join();
+   BOOST_REQUIRE(enqueueing_thread1.joinable());
+   enqueueing_thread1.join();
+
+   BOOST_CHECK(!wq.try_dequeue(item));
+   BOOST_REQUIRE(enqueueing_thread2.joinable());
+   enqueueing_thread2.join();
+
+   BOOST_CHECK(!wq.try_dequeue(item));
+   BOOST_REQUIRE(enqueueing_thread3.joinable());
+   enqueueing_thread3.join();
 }
 
 BOOST_AUTO_TEST_SUITE_END()
