@@ -59,6 +59,7 @@ class work_queue {
       char data[192];
    };
 
+   //! Implements the Fast Pimpl idiom from http://www.gotw.ca/gotw/028.htm
    impl_data storage_;
 
    inline impl_t &impl_();

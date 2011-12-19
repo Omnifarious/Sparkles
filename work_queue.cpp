@@ -11,6 +11,17 @@ typedef ::std::lock_guard<mutex> lock_guard;
 
 namespace {
 
+// These two classes are only used to get an error message that contains the
+// important values known at compile time, but not when the code is being
+// written.
+class no_type {
+ private:
+   no_type();
+};
+
+template <unsigned int foo> struct fake {
+   no_type joe;
+};
 
 } // Anonymous namespace
 
@@ -39,15 +50,6 @@ struct work_queue::impl_t {
               deleted_head_(nullptr)
    {
    }
-};
-
-class no_type {
- private:
-   no_type();
-};
-
-template <unsigned int foo> struct fake {
-   no_type joe;
 };
 
 inline work_queue::impl_t &work_queue::impl_()
@@ -105,11 +107,14 @@ work_queue::remove_from_queue(node_t *&head, node_t *&tail)
 
 work_queue::work_queue()
 {
-//   fake<sizeof(impl)> me;
+//   fake<sizeof(impl_data)> me; // Discover the new size if it's wrong.
+//   fake<alignof(impl_data)> me; // Discovers the new slignment if it's wrong.
+   // Using static asserts here lessens the maintenance burden because it will
+   // fail at compile time. No runtime testing is needed.
    static_assert(alignof(impl_data) >= alignof(impl_t),
-                 "Alignment too loose for impl_storage.");
+                 "Alignment too loose for impl_data.");
    static_assert(sizeof(impl_data) >= sizeof(impl_t),
-                 "impl_storage too small.");
+                 "impl_data too small.");
    void *storage = &storage_;
    impl_t * const myimpl = new(storage) impl_t;
    if (myimpl != &impl_()) {
