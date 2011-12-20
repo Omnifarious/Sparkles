@@ -218,6 +218,15 @@ BOOST_AUTO_TEST_CASE( construct_empty )
    BOOST_CHECK_NO_THROW(nested());
 }
 
+BOOST_AUTO_TEST_CASE( no_result )
+{
+   finishedq_t finishedq;
+   operation<int>::ptr_t op(nodep_op<int>::create("op", finishedq, nullptr));
+   BOOST_CHECK_THROW(op->result(), invalid_result);
+   BOOST_CHECK_THROW(op->error(), invalid_result);
+   BOOST_CHECK_THROW(op->exception(), invalid_result);
+}
+
 BOOST_AUTO_TEST_CASE( test_normal )
 {
    finishedq_t finishedq;
