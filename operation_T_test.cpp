@@ -41,17 +41,32 @@ class base_testop : public operation<ResultType> {
 
    void set_result(result_t result) {
       finishedq_.push_back(name_);
-      baseclass_t::set_result(::std::move(result));
+      try {
+         baseclass_t::set_result(::std::move(result));
+      } catch (...) {
+         finishedq_.pop_back();
+         throw;
+      }
    }
    void set_bad_result(::std::exception_ptr exception)
    {
       finishedq_.push_back(name_);
-      baseclass_t::set_bad_result(::std::move(exception));
+      try {
+         baseclass_t::set_bad_result(::std::move(exception));
+      } catch (...) {
+         finishedq_.pop_back();
+         throw;
+      }
    }
    void set_bad_result(::std::error_code error)
    {
       finishedq_.push_back(name_);
-      baseclass_t::set_bad_result(::std::move(error));
+      try {
+         baseclass_t::set_bad_result(::std::move(error));
+      } catch (...) {
+         finishedq_.pop_back();
+         throw;
+      }
    }
 
  private:
@@ -225,6 +240,73 @@ BOOST_AUTO_TEST_CASE( no_result )
    BOOST_CHECK_THROW(op->result(), invalid_result);
    BOOST_CHECK_THROW(op->error(), invalid_result);
    BOOST_CHECK_THROW(op->exception(), invalid_result);
+}
+
+BOOST_AUTO_TEST_CASE( bad_result )
+{
+   finishedq_t finishedq;
+   nodep_op<int>::ptr_t op(nodep_op<int>::create("op", finishedq, nullptr));
+   BOOST_CHECK_THROW(op->set_bad_result(nullptr), ::std::invalid_argument);
+   BOOST_CHECK_THROW(op->set_bad_result(::std::error_code()),
+                     ::std::invalid_argument);
+}
+
+BOOST_AUTO_TEST_CASE( double_set )
+{
+   auto make_exception_ptr = []() -> ::std::exception_ptr {
+      try {
+         throw test_exception("This should be stored.");
+      } catch (...) {
+         return ::std::current_exception();
+      }
+   };
+   const auto the_error = make_error_code(test_error::some_error);
+   finishedq_t finishedq;
+   {
+      nodep_op<int>::ptr_t op(nodep_op<int>::create("op1", finishedq, nullptr));
+      op->set_result(1);
+      BOOST_CHECK_THROW(op->set_bad_result(make_exception_ptr()),
+                        invalid_result);
+      BOOST_CHECK_EQUAL(op->result(), 1);
+   }
+   {
+      nodep_op<int>::ptr_t op(nodep_op<int>::create("op2", finishedq, nullptr));
+      op->set_result(2);
+      BOOST_CHECK_THROW(op->set_bad_result(the_error), invalid_result);
+      BOOST_CHECK_EQUAL(op->result(), 2);
+   }
+   {
+      nodep_op<int>::ptr_t op(nodep_op<int>::create("op3", finishedq, nullptr));
+      op->set_bad_result(make_exception_ptr());
+      BOOST_CHECK_THROW(op->set_result(3), invalid_result);
+      BOOST_CHECK_THROW(op->result(), test_exception);
+      BOOST_CHECK(op->exception() != nullptr);
+   }
+   {
+      nodep_op<int>::ptr_t op(nodep_op<int>::create("op4", finishedq, nullptr));
+      op->set_bad_result(make_exception_ptr());
+      BOOST_CHECK_THROW(op->set_bad_result(the_error), invalid_result);
+      BOOST_CHECK_THROW(op->result(), test_exception);
+      BOOST_CHECK(op->exception() != nullptr);
+   }
+   {
+      nodep_op<int>::ptr_t op(nodep_op<int>::create("op5", finishedq, nullptr));
+      op->set_bad_result(the_error);
+      BOOST_CHECK_THROW(op->set_result(5), invalid_result);
+      BOOST_CHECK_THROW(op->result(), ::std::system_error);
+      BOOST_CHECK_EQUAL(op->error(), the_error);
+   }
+   {
+      nodep_op<int>::ptr_t op(nodep_op<int>::create("op6", finishedq, nullptr));
+      op->set_bad_result(the_error);
+      BOOST_CHECK_THROW(op->set_bad_result(make_exception_ptr()),
+                        invalid_result);
+      BOOST_CHECK_THROW(op->result(), ::std::system_error);
+      BOOST_CHECK_EQUAL(op->error(), the_error);
+   }
+   auto correct = {"op1", "op2", "op3", "op4", "op5", "op6"};
+   BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
+                                 correct.begin(), correct.end());
 }
 
 BOOST_AUTO_TEST_CASE( test_normal )
