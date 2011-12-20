@@ -5,7 +5,9 @@
 
 namespace sparkles {
 
-void operation<void>::result()
+namespace priv {
+
+void result_base::maybe_throw_result_exception()
 {
    if (!is_valid()) {
       throw invalid_result("attempt to fetch a non-existent result.");
@@ -16,7 +18,7 @@ void operation<void>::result()
    }
 }
 
-::std::error_code operation<void>::error() const
+::std::error_code result_base::error() const
 {
    if (!is_valid()) {
       throw invalid_result("attempt to fetch a non-existent result.");
@@ -27,7 +29,7 @@ void operation<void>::result()
    }
 }
 
-::std::exception_ptr operation<void>::exception() const
+::std::exception_ptr result_base::exception() const
 {
    if (!is_valid()) {
       throw invalid_result("attempt to fetch a non-existent result.");
@@ -38,44 +40,43 @@ void operation<void>::result()
    }
 }
 
-void operation<void>::set_result()
+void result_base::set_result(bool finished)
 {
-   if (is_valid() || finished()) {
+   if (is_valid() || finished) {
       throw invalid_result("Attempt to set a result that's already been set.");
    } else {
       is_valid_ = true;
       error_ = ::std::error_code();
       exception_ = nullptr;
-      set_finished();
    }
 }
 
-void operation<void>::set_bad_result(::std::exception_ptr exception)
+void result_base::set_bad_result(::std::exception_ptr exception, bool finished)
 {
    if (exception == nullptr) {
       throw ::std::invalid_argument("Cannot set a null exception result.");
-   } else if (is_valid() || finished()) {
+   } else if (is_valid() || finished) {
       throw invalid_result("Attempt to set a result that's already been set.");
    } else {
       exception_ = exception;
       is_valid_ = true;
       error_ = ::std::error_code();
-      set_finished();
    }
 }
 
-void operation<void>::set_bad_result(::std::error_code error)
+void result_base::set_bad_result(::std::error_code error, bool finished)
 {
    if (error == ::std::error_code()) {
       throw ::std::invalid_argument("Cannot set a no-error error result.");
-   } else if (is_valid() || finished()) {
+   } else if (is_valid() || finished) {
       throw invalid_result("Attempt to set a result that's already been set.");
    } else {
       error_ = error;
       is_valid_ = true;
       exception_ = nullptr;
-      set_finished();
    }
 }
+
+} // namespace priv
 
 } // namespace sparkles
