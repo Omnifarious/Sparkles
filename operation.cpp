@@ -5,9 +5,9 @@
 
 namespace sparkles {
 
-namespace priv {
+const ::std::error_code operation_with_error::no_error;
 
-void result_base::maybe_throw_result_exception()
+void operation_with_error::result() const
 {
    if (!is_valid()) {
       throw invalid_result("attempt to fetch a non-existent result.");
@@ -18,7 +18,7 @@ void result_base::maybe_throw_result_exception()
    }
 }
 
-::std::error_code result_base::error() const
+::std::error_code operation_with_error::error() const
 {
    if (!is_valid()) {
       throw invalid_result("attempt to fetch a non-existent result.");
@@ -29,7 +29,7 @@ void result_base::maybe_throw_result_exception()
    }
 }
 
-::std::exception_ptr result_base::exception() const
+::std::exception_ptr operation_with_error::exception() const
 {
    if (!is_valid()) {
       throw invalid_result("attempt to fetch a non-existent result.");
@@ -40,43 +40,44 @@ void result_base::maybe_throw_result_exception()
    }
 }
 
-void result_base::set_result(bool finished)
+void operation_with_error::set_result()
 {
-   if (is_valid() || finished) {
+   if (is_valid() || finished()) {
       throw invalid_result("Attempt to set a result that's already been set.");
    } else {
       is_valid_ = true;
-      error_ = ::std::error_code();
+      error_ = no_error;
       exception_ = nullptr;
+      set_finished();
    }
 }
 
-void result_base::set_bad_result(::std::exception_ptr exception, bool finished)
+void operation_with_error::set_bad_result(::std::exception_ptr exception)
 {
    if (exception == nullptr) {
       throw ::std::invalid_argument("Cannot set a null exception result.");
-   } else if (is_valid() || finished) {
+   } else if (is_valid() || finished()) {
       throw invalid_result("Attempt to set a result that's already been set.");
    } else {
       exception_ = exception;
       is_valid_ = true;
-      error_ = ::std::error_code();
+      error_ = no_error;
+      set_finished();
    }
 }
 
-void result_base::set_bad_result(::std::error_code error, bool finished)
+void operation_with_error::set_bad_result(::std::error_code error)
 {
-   if (error == ::std::error_code()) {
+   if (error == no_error) {
       throw ::std::invalid_argument("Cannot set a no-error error result.");
-   } else if (is_valid() || finished) {
+   } else if (is_valid() || finished()) {
       throw invalid_result("Attempt to set a result that's already been set.");
    } else {
       error_ = error;
       is_valid_ = true;
       exception_ = nullptr;
+      set_finished();
    }
 }
-
-} // namespace priv
 
 } // namespace sparkles
