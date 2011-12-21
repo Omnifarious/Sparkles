@@ -35,12 +35,14 @@ void operation_base::set_finished()
    const opbase_ptr_t me(shared_from_this());
    finished_ = true;
 
-   {
+   if (cleanup_dependencies_) {
       ::std::unordered_set<opbase_ptr_t> saved_deps;
       saved_deps.swap(dependencies_);
       for (auto &dependency : saved_deps) {
          dependency->remove_dependent(this);
       }
+   } else {
+      dependencies_.clear();
    }
 
    // We can't use the swap trick here because informing a dependent that we've
@@ -64,18 +66,24 @@ void operation_base::remove_dependency(
 {
    const opbase_ptr_t me(shared_from_this());
    if (deppos != dependencies_.end()) {
-      const opbase_ptr_t dep(*deppos);
-      dependencies_.erase(deppos);
-      dep->remove_dependent(this);
+      if (cleanup_dependencies_) {
+         const opbase_ptr_t dep(*deppos);
+         dependencies_.erase(deppos);
+         dep->remove_dependent(this);
+      } else {
+         dependencies_.erase(deppos);
+      }
    }
 }
 
 operation_base::~operation_base()
 {
-   // As a courtesy, tell all of our dependencies to forget about this object a
-   // dependent as it's about to go away.
-   for (auto &dependency : dependencies_) {
-      dependency->remove_dependent(this);
+   if (cleanup_dependencies_) {
+      // As a courtesy, tell all of our dependencies to forget about this object
+      // a dependent as it's about to go away.
+      for (auto &dependency : dependencies_) {
+         dependency->remove_dependent(this);
+      }
    }
 }
 
