@@ -5,6 +5,7 @@ namespace sparkles {
 void operation_base::add_dependent(const opbase_ptr_t &dependent)
 {
    if (dependent != nullptr) {
+      ::std::lock_guard<decltype(dependents_mutex_)> lock(dependents_mutex_);
       dependents_[dependent.get()] = weak_opbase_ptr_t(dependent);
    }
 }
@@ -12,6 +13,7 @@ void operation_base::add_dependent(const opbase_ptr_t &dependent)
 void operation_base::remove_dependent(const operation_base *dependent)
 {
    if (dependent != nullptr) {
+      ::std::lock_guard<decltype(dependents_mutex_)> lock(dependents_mutex_);
       auto depiter = dependents_.find(const_cast<operation_base *>(dependent));
       if (depiter != dependents_.end()) {
          dependents_.erase(depiter);
@@ -35,14 +37,12 @@ void operation_base::set_finished()
    const opbase_ptr_t me(shared_from_this());
    finished_ = true;
 
-   if (cleanup_dependencies_) {
-      ::std::unordered_set<opbase_ptr_t> saved_deps;
-      saved_deps.swap(dependencies_);
-      for (auto &dependency : saved_deps) {
+   {
+      for (auto &dependency : dependencies_) {
          dependency->remove_dependent(this);
       }
-   } else {
-      dependencies_.clear();
+      ::std::unordered_set<opbase_ptr_t> empty;
+      empty.swap(dependencies_);
    }
 
    // We can't use the swap trick here because informing a dependent that we've
@@ -50,6 +50,7 @@ void operation_base::set_finished()
    while (dependents_.size() > 0) {
       opbase_ptr_t dependent;
       {
+         ::std::lock_guard<decltype(dependents_mutex_)> lock(dependents_mutex_);
          auto first = dependents_.begin();
          dependent = first->second.lock();
          dependents_.erase(first);
@@ -66,24 +67,18 @@ void operation_base::remove_dependency(
 {
    const opbase_ptr_t me(shared_from_this());
    if (deppos != dependencies_.end()) {
-      if (cleanup_dependencies_) {
-         const opbase_ptr_t dep(*deppos);
-         dependencies_.erase(deppos);
-         dep->remove_dependent(this);
-      } else {
-         dependencies_.erase(deppos);
-      }
+      const opbase_ptr_t dep(*deppos);
+      dep->remove_dependent(this);
+      dependencies_.erase(deppos);
    }
 }
 
 operation_base::~operation_base()
 {
-   if (cleanup_dependencies_) {
-      // As a courtesy, tell all of our dependencies to forget about this object
-      // a dependent as it's about to go away.
-      for (auto &dependency : dependencies_) {
-         dependency->remove_dependent(this);
-      }
+   // As a courtesy, tell all of our dependencies to forget that this object is
+   // a dependent as it's about to go away.
+   for (auto &dependency : dependencies_) {
+      dependency->remove_dependent(this);
    }
 }
 
