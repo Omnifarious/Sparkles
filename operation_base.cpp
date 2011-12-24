@@ -5,7 +5,6 @@ namespace sparkles {
 void operation_base::add_dependent(const opbase_ptr_t &dependent)
 {
    if (dependent != nullptr) {
-      ::std::lock_guard<decltype(dependents_mutex_)> lock(dependents_mutex_);
       dependents_[dependent.get()] = weak_opbase_ptr_t(dependent);
    }
 }
@@ -13,7 +12,6 @@ void operation_base::add_dependent(const opbase_ptr_t &dependent)
 void operation_base::remove_dependent(const operation_base *dependent)
 {
    if (dependent != nullptr) {
-      ::std::lock_guard<decltype(dependents_mutex_)> lock(dependents_mutex_);
       auto depiter = dependents_.find(const_cast<operation_base *>(dependent));
       if (depiter != dependents_.end()) {
          dependents_.erase(depiter);
@@ -50,7 +48,6 @@ void operation_base::set_finished()
    while (dependents_.size() > 0) {
       opbase_ptr_t dependent;
       {
-         ::std::lock_guard<decltype(dependents_mutex_)> lock(dependents_mutex_);
          auto first = dependents_.begin();
          dependent = first->second.lock();
          dependents_.erase(first);

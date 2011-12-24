@@ -5,7 +5,6 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <algorithm>
-#include <mutex>
 
 namespace sparkles {
 
@@ -108,7 +107,6 @@ class operation_base : public ::std::enable_shared_from_this<operation_base>
 
    bool finished_;
    ::std::unordered_set<opbase_ptr_t> dependencies_;
-   ::std::mutex dependents_mutex_;
    ::std::unordered_map<operation_base *, weak_opbase_ptr_t> dependents_;
 
    void dependency_finished(const opbase_ptr_t &dependency);
