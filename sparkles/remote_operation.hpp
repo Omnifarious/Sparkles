@@ -18,7 +18,7 @@ namespace priv {
 //
 // \return Returns false if a result must be propogated and the set_result
 // function is nullptr.
-.inline bool
+inline bool
 enqueue_propogate_result(
    work_queue &wq,
    const ::std::shared_ptr<operation_with_error> &me,
