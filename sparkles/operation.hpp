@@ -93,6 +93,7 @@ class operation<void> : public operation_with_error
 {
  public:
    typedef ::std::shared_ptr<operation<void> > ptr_t;
+   typedef void result_t;
 
  protected:
    //! Construct an operation<void> with the given set of dependencies
