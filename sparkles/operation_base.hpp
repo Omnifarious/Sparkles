@@ -51,12 +51,26 @@ class operation_base : public ::std::enable_shared_from_this<operation_base>
    template <class InputIterator>
    operation_base(InputIterator begin,
                   const InputIterator &end)
-        : finished_(false), dependencies_(begin, end)
+        : finished_(false), multithreaded_dependencies_(false),
+          dependencies_(begin, end)
    {
    }
 
    //! Set this operation as being finished.
    void set_finished();
+
+   //! Set whether or not any of my dependencies may live in another thread.
+   //
+   // The only thing that will affect depencies that's not under the control of
+   // the thread this operation is in is the destructor.  It's almost certainly
+   // called from the thread this operation is in, and if dependencies may live
+   // in another thread, it's important that the destructor not do anything to
+   // modify them (like remove this operation from their list of dependents).
+   bool set_mulithreaded_dependencies(bool newval) {
+      const bool curval = multithreaded_dependencies_;
+      multithreaded_dependencies_ = newval;
+      return curval;
+   }
 
    //! Execute a function repeatedly with a shared_ptr to each dependency.
    template <class UnaryFunction>
@@ -68,7 +82,7 @@ class operation_base : public ::std::enable_shared_from_this<operation_base>
 
    //! I no longer depend on this operation.
    //
-   // \param[in] dependency The dependency to remove
+   // \param[in] dependency The operation you no longer depend on.
    //
    // \throws bad_dependency if this operation does not currently depend on
    // dependency.
@@ -79,8 +93,8 @@ class operation_base : public ::std::enable_shared_from_this<operation_base>
    // wheres adding them can.
    //
    // If you've removed the last dependency, realize that there will be no
-   // trigger for finishing you operation and you may want to consider finishing
-   // it yourself at that point.
+   // trigger for finishing your operation and you may want to consider
+   // finishing it yourself at that point.
    void remove_dependency(const opbase_ptr_t &dependency) {
       auto deppos = dependencies_.find(dependency);
       if (deppos == dependencies_.end()) {
@@ -106,6 +120,7 @@ class operation_base : public ::std::enable_shared_from_this<operation_base>
    typedef ::std::weak_ptr<operation_base> weak_opbase_ptr_t;
 
    bool finished_;
+   bool multithreaded_dependencies_;
    ::std::unordered_set<opbase_ptr_t> dependencies_;
    ::std::unordered_map<operation_base *, weak_opbase_ptr_t> dependents_;
 

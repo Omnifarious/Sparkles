@@ -73,9 +73,12 @@ void operation_base::remove_dependency(
 operation_base::~operation_base()
 {
    // As a courtesy, tell all of our dependencies to forget that this object is
-   // a dependent as it's about to go away.
-   for (auto &dependency : dependencies_) {
-      dependency->remove_dependent(this);
+   // a dependent as it's about to go away.  But don't do this if our
+   // dependencies may live in another thread.
+   if (!multithreaded_dependencies_) {
+      for (auto &dependency : dependencies_) {
+         dependency->remove_dependent(this);
+      }
    }
 }
 
