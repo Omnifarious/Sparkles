@@ -14,17 +14,15 @@ namespace sparkles {
 //! Private classes and functions used in the implementation of sparkles.
 namespace priv {
 
-typedef ::std::weak_ptr<operation_with_error> weak_errop_ptr_t;
-
 //! Queue up a functor that will propogate the result
 //
-// \return Returns false if a typed result must be propogated.
-inline bool
+// \return Returns false if a result must be propogated and the set_result
+// function is nullptr.
+.inline bool
 enqueue_propogate_result(
    work_queue &wq,
    const ::std::shared_ptr<operation_with_error> &me,
    const ::std::shared_ptr<operation_with_error> &other_op,
-   bool isvoid,
    void (operation_with_error::*set_result)(),
    void (operation_with_error::*set_error)(::std::error_code),
    void (operation_with_error::*set_exception)(::std::exception_ptr)
@@ -51,7 +49,7 @@ enqueue_propogate_result(
       };
       wq.enqueue(::std::bind(weak_deref_exception, other_op->exception()));
       return true;
-   } else if (isvoid) {
+   } else if (set_result != nullptr) {
       auto weak_deref_voidresult =
          [weak_me, set_result]() {
             ::std::shared_ptr<operation_with_error> me(weak_me.lock());
@@ -67,18 +65,6 @@ enqueue_propogate_result(
 }
 
 } // namespace priv
-
-//************************
-// The basic problem here is that this class has to be very careful about what
-// it does in which thread. It can't, for example, do anything to it's
-// depedency (like remove itself as a depedent) in the thread of this class'
-// dependents.
-//
-// The main danger here as that the destructor is likely to be called in the
-// dependents' thread because this result is no longer needed. The destructor
-// automatically de-registers this class from its dependencies, but it's
-// dependencies are in a different thread.
-//************************
 
 //! A local thread placeholder for an operation in another thread.
 //
@@ -99,21 +85,36 @@ class remote_operation : public operation<ResultType>
    typedef operation<ResultType> baseclass_t;
    typedef typename baseclass_t::ptr_t baseptr_t;
 
+   //! This type only exists to make the constructor effectively private.
+   struct privclass {
+   };
+
  public:
    typedef typename baseclass_t::result_t result_t;
    typedef ::std::shared_ptr<remote_operation<ResultType> > ptr_t;
    typedef operation_base::opbase_ptr_t opbase_ptr_t;
 
- protected:
+   static ptr_t
+   create(baseptr_t remote, work_queue &wq) {
+      typedef remote_operation<ResultType> me_t;
+      ptr_t new_remote{
+         ::std::make_shared<me_t>(privclass{}, ::std::move(remote), wq)
+            };
+      register_as_dependent(new_remote);
+      return ::std::move(new_remote);
+   }
+
    //! Construct a remote_operation.
+   //
+   // The first parameter uses a private type to make the constructor
+   // effectively private even if it's officially public.  It must be
+   // officially public so that it can be used with make_shared.
    //
    // \param[in] remote The operation from another thread who's value will be
    // captured.
    // \param[in] wq A reference to the work_queue of the thread this operation
    // will be operating in (must exist for lifetime of object).
-   // \param[in] remote_wq A pointer to the work_queue for the thread remote is
-   // in (used for cleanup).
-   remote_operation(baseptr_t remote, work_queue &wq)
+   remote_operation(const privclass &, baseptr_t remote, work_queue &wq)
         : baseclass_t({remote}), remote_(remote), wq_(wq)
    {
       this->set_mulithreaded_dependencies(true);
@@ -148,8 +149,8 @@ void remote_operation<ResultType>::remote_finished()
    remove_dependency(remote_);
    baseptr_t remote_ptr;
    remote_ptr.swap(remote_);
-   if (!priv::enqueue_propogate_result(wq_, me, remote_ptr, false,
-                                       &me_t::set_result,
+   if (!priv::enqueue_propogate_result(wq_, me, remote_ptr,
+                                       nullptr,
                                        &me_t::set_bad_result,
                                        &me_t::set_bad_result))
    {
@@ -168,9 +169,8 @@ template <>
 void remote_operation<void>::remote_finished()
 {
    typedef remote_operation<void> me_t;
-   const ptr_t me(
-      ::std::static_pointer_cast<remote_operation<void> >(
-         this->shared_from_this()));
+   const auto tmp = this->shared_from_this();
+   const ptr_t me(::std::static_pointer_cast<me_t>(tmp));
 
    // This is safe to do because this function will always be called in the
    // context of the dependency's thread. And there is no way for the
@@ -178,7 +178,7 @@ void remote_operation<void>::remote_finished()
    remove_dependency(remote_);
    baseptr_t remote_ptr;
    remote_ptr.swap(remote_);
-   if (!priv::enqueue_propogate_result(wq_, me, remote_ptr, true,
+   if (!priv::enqueue_propogate_result(wq_, me, remote_ptr,
                                        &me_t::set_result,
                                        &me_t::set_bad_result,
                                        &me_t::set_bad_result))
