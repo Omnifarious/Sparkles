@@ -5,6 +5,7 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <algorithm>
+#include <mutex>
 
 namespace sparkles {
 
@@ -51,25 +52,12 @@ class operation_base : public ::std::enable_shared_from_this<operation_base>
    template <class InputIterator>
    operation_base(InputIterator begin,
                   const InputIterator &end)
-        : finished_(false), cleanup_dependencies_(true),
-          dependencies_(begin, end)
+        : finished_(false), dependencies_(begin, end)
    {
    }
 
    //! Set this operation as being finished.
    void set_finished();
-
-   //! Sometimes (often for thread safety reasons) you do not want to remove
-   // yourself from the list of dependents of your dependencies.
-   //
-   // The fact that your dependencies store their pointer to you as a weak_ptr
-   // will make sure that they won't try to call any of your methods after
-   // destruction.
-   bool set_cleanup_dependencies(bool flagval) {
-      bool oldval = cleanup_dependencies_;
-      cleanup_dependencies_ = flagval;
-      return oldval;
-   }
 
    //! Execute a function repeatedly with a shared_ptr to each dependency.
    template <class UnaryFunction>
@@ -119,8 +107,8 @@ class operation_base : public ::std::enable_shared_from_this<operation_base>
    typedef ::std::weak_ptr<operation_base> weak_opbase_ptr_t;
 
    bool finished_;
-   bool cleanup_dependencies_;
    ::std::unordered_set<opbase_ptr_t> dependencies_;
+   ::std::mutex dependents_mutex_;
    ::std::unordered_map<operation_base *, weak_opbase_ptr_t> dependents_;
 
    void dependency_finished(const opbase_ptr_t &dependency);
