@@ -30,18 +30,18 @@ class test_error_category_impl : public ::std::error_category
    }
 };
 
-const ::std::error_category &test_error_category()
+inline const ::std::error_category &test_error_category()
 {
    static const test_error_category_impl instance;
    return instance;
 }
 
-::std::error_code make_error_code(test_error e)
+inline ::std::error_code make_error_code(test_error e)
 {
    return ::std::error_code(static_cast<int>(e), test_error_category());
 }
 
-::std::error_code make_error_condition(test_error e)
+inline ::std::error_code make_error_condition(test_error e)
 {
    return ::std::error_code(static_cast<int>(e), test_error_category());
 }
