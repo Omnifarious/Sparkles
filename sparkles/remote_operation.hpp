@@ -14,12 +14,12 @@ namespace sparkles {
 //! Private classes and functions used in the implementation of sparkles.
 namespace priv {
 
-//! Queue up a functor that will propogate the result
+//! Queue up a functor that will propagate the result
 //
-// \return Returns false if a result must be propogated and the set_result
+// \return Returns false if a result must be propagated and the set_result
 // function is nullptr.
 inline bool
-enqueue_propogate_result(
+enqueue_propagate_result(
    work_queue &wq,
    const ::std::shared_ptr<operation_with_error> &me,
    const ::std::shared_ptr<operation_with_error> &other_op,
@@ -149,7 +149,7 @@ void remote_operation<ResultType>::remote_finished()
    remove_dependency(remote_);
    baseptr_t remote_ptr;
    remote_ptr.swap(remote_);
-   if (!priv::enqueue_propogate_result(wq_, me, remote_ptr,
+   if (!priv::enqueue_propagate_result(wq_, me, remote_ptr,
                                        nullptr,
                                        &me_t::set_bad_result,
                                        &me_t::set_bad_result))
@@ -178,7 +178,7 @@ void remote_operation<void>::remote_finished()
    remove_dependency(remote_);
    baseptr_t remote_ptr;
    remote_ptr.swap(remote_);
-   if (!priv::enqueue_propogate_result(wq_, me, remote_ptr,
+   if (!priv::enqueue_propagate_result(wq_, me, remote_ptr,
                                        &me_t::set_result,
                                        &me_t::set_bad_result,
                                        &me_t::set_bad_result))
