@@ -70,12 +70,15 @@ BOOST_AUTO_TEST_CASE( basic_add )
    BOOST_CHECK(del_adder);
    BOOST_CHECK(!(remote->is_valid() || remote->finished()));
    wq.dequeue()();
-   BOOST_CHECK(remote->is_valid() || remote->finished());
+   BOOST_CHECK(remote->is_valid() && remote->finished());
    BOOST_CHECK_EQUAL(remote->result(), 11);
    {
       work_queue::work_item_t tmp;
       BOOST_CHECK(!wq.try_dequeue(tmp));
    }
+   auto correct = {"arg1", "arg2", "adder"};
+   BOOST_CHECK_EQUAL_COLLECTIONS(finishedq.begin(), finishedq.end(),
+                                 correct.begin(), correct.end());
 }
 
 
