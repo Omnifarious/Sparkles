@@ -81,6 +81,88 @@ BOOST_AUTO_TEST_CASE( basic_add )
                                  correct.begin(), correct.end());
 }
 
+BOOST_AUTO_TEST_CASE( propagate_result )
+{
+   finishedq_t finishedq;
+   work_queue wq;
+   auto op1 = nodep_op<int>::create("arg1", finishedq, nullptr);
+   auto remote = remote_operation<int>::create(op1, wq);
+   BOOST_CHECK(!(op1->is_valid() || op1->finished()));
+   BOOST_CHECK(!(remote->is_valid() || remote->finished()));
+
+   op1->set_result(5);
+   BOOST_CHECK(op1->is_valid() && op1->finished());
+   BOOST_CHECK_EQUAL(op1->result(), 5);
+   BOOST_CHECK(!(remote->is_valid() || remote->finished()));
+
+   wq.dequeue()();
+   BOOST_CHECK(op1->is_valid() && op1->finished());
+   BOOST_CHECK(remote->is_valid() && remote->finished());
+   BOOST_CHECK_EQUAL(op1->result(), 5);
+   BOOST_CHECK_EQUAL(remote->result(), 5);
+   {
+      work_queue::work_item_t tmp;
+      BOOST_CHECK(!wq.try_dequeue(tmp));
+   }
+}
+
+BOOST_AUTO_TEST_CASE( propagate_error )
+{
+   finishedq_t finishedq;
+   work_queue wq;
+   auto op1 = nodep_op<int>::create("arg1", finishedq, nullptr);
+   auto remote = remote_operation<int>::create(op1, wq);
+   BOOST_CHECK(!(op1->is_valid() || op1->finished()));
+   BOOST_CHECK(!(remote->is_valid() || remote->finished()));
+
+   const auto my_error = make_error_code(test_error::some_error);
+   op1->set_bad_result(my_error);
+   BOOST_CHECK(op1->is_valid() && op1->finished());
+   BOOST_CHECK_EQUAL(op1->error(), my_error);
+   BOOST_CHECK(!(remote->is_valid() || remote->finished()));
+
+   wq.dequeue()();
+   BOOST_CHECK(op1->is_valid() && op1->finished());
+   BOOST_CHECK(remote->is_valid() && remote->finished());
+   BOOST_CHECK_EQUAL(op1->error(), my_error);
+   BOOST_CHECK_EQUAL(remote->error(), my_error);
+   {
+      work_queue::work_item_t tmp;
+      BOOST_CHECK(!wq.try_dequeue(tmp));
+   }
+}
+
+BOOST_AUTO_TEST_CASE( propagate_exception )
+{
+   finishedq_t finishedq;
+   work_queue wq;
+   auto make_exception_ptr = []() -> ::std::exception_ptr {
+      try {
+         throw test_exception("This should be stored.");
+      } catch (...) {
+         return ::std::current_exception();
+      }
+   };
+   auto op1 = nodep_op<int>::create("arg1", finishedq, nullptr);
+   auto remote = remote_operation<int>::create(op1, wq);
+   BOOST_CHECK(!(op1->is_valid() || op1->finished()));
+   BOOST_CHECK(!(remote->is_valid() || remote->finished()));
+
+   op1->set_bad_result(make_exception_ptr());
+   BOOST_CHECK(op1->is_valid() && op1->finished());
+   BOOST_CHECK_THROW(op1->result(), test_exception);
+   BOOST_CHECK(!(remote->is_valid() || remote->finished()));
+
+   wq.dequeue()();
+   BOOST_CHECK(op1->is_valid() && op1->finished());
+   BOOST_CHECK(remote->is_valid() && remote->finished());
+   BOOST_CHECK_THROW(op1->result(), test_exception);
+   BOOST_CHECK_THROW(remote->result(), test_exception);
+   {
+      work_queue::work_item_t tmp;
+      BOOST_CHECK(!wq.try_dequeue(tmp));
+   }
+}
 
 BOOST_AUTO_TEST_SUITE_END()
 
