@@ -95,7 +95,7 @@ class remote_operation : public operation<ResultType>
    typedef operation_base::opbase_ptr_t opbase_ptr_t;
 
    static ptr_t
-   create(baseptr_t remote, work_queue &wq) {
+   create(typename operation<ResultType>::ptr_t remote, work_queue &wq) {
       typedef remote_operation<ResultType> me_t;
       ptr_t new_remote{
          ::std::make_shared<me_t>(privclass{}, ::std::move(remote), wq)
