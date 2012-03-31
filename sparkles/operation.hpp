@@ -142,6 +142,12 @@ class operation : public operation_with_error
    {
    }
 
+   //! Construct an operation<ResultType> with the given set of dependencies
+   operation(const ::std::initializer_list<opbase_ptr_t> &lst)
+        : operation_with_error(lst.begin(), lst.end())
+   {
+   }
+
    void set_result(result_t result) {
       if (!is_valid()) {
          result_ = ::std::move(result);
