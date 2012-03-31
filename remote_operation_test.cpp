@@ -1,3 +1,6 @@
+// Required to make ::std::this_thread::sleep_for work.
+#define _GLIBCXX_USE_NANOSLEEP
+
 #include "test_operations.hpp"
 #include "test_error.hpp"
 
@@ -6,6 +9,9 @@
 #include <sparkles/work_queue.hpp>
 
 #include <boost/test/unit_test.hpp>
+
+#include <thread>
+#include <chrono>
 
 namespace sparkles {
 namespace test {
@@ -162,6 +168,28 @@ BOOST_AUTO_TEST_CASE( propagate_exception )
       work_queue::work_item_t tmp;
       BOOST_CHECK(!wq.try_dequeue(tmp));
    }
+}
+
+BOOST_AUTO_TEST_CASE( simple_threaded )
+{
+   class remote_thread {
+    public:
+      remote_thread() : finished_(false) {}
+
+      void operator ()() {
+         while (!finished_) {
+            wq_.dequeue()();
+         }
+      }
+
+      remote_operation<int>::ptr_t
+      remote_add(work_queue &localq, int a, int b);
+
+    private:
+      work_queue wq_;
+      bool finished_;
+      finishedq_t finishedq_;
+   };
 }
 
 BOOST_AUTO_TEST_SUITE_END()
