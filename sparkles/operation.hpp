@@ -130,6 +130,12 @@ class operation<void> : public priv::operation_with_error
    {
    }
 
+   //! Construct an operation<void> with the given set of dependencies
+   operation(const ::std::initializer_list<opbase_ptr_t> &lst)
+        : operation_with_error(lst.begin(), lst.end())
+   {
+   }
+
  private:
    virtual void i_dependency_finished(const opbase_ptr_t &dependency) = 0;
 };
