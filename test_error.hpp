@@ -1,6 +1,7 @@
 #pragma once
 
 #include <system_error>
+#include <stdexcept>
 
 namespace sparkles {
 namespace test {
