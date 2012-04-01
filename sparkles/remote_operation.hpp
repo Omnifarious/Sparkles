@@ -342,4 +342,88 @@ class remote_operation<void>::promise {
    bool used_;
 };
 
+/*! \brief This represents an operation who's result is promised to another
+ *  thread.
+ *
+ * Note that it is trivial to use this to create deadlock cycles in the
+ * operation dependency graph:
+ *
+ * \code
+ * work_queue wq;
+ * auto rem_prom = remote_operation<int>::create(wq);
+ * auto prom_op = promised_operation::create(rem_prom.second, rem_prom.first);
+ * \code
+ *
+ * So don't do that. If you always hand off the promise to another thread and
+ * you never share operation's between threads this should accomplish the goal.
+ * You can, of course, create cycles between threads, and you need to be careful
+ * to not do this either.
+ */
+template <typename ResultType>
+class promised_operation : public operation<ResultType>
+{
+   //! Private cookie to make sure only the create method creates these things.
+   struct priv_cookie {};
+   typedef typename remote_operation<ResultType>::promise::ptr_t promise_ptr_t;
+   typedef typename operation<ResultType>::ptr_t op_ptr_t;
+
+ public:
+   typedef typename operation<ResultType>::opbase_ptr_t opbase_ptr_t;
+   typedef ::std::shared_ptr<promised_operation<ResultType> > ptr_t;
+
+   promised_operation(const priv_cookie &,
+                      promise_ptr_t promise, op_ptr_t local_op)
+        : operation<ResultType>({local_op}),
+          promise_(::std::move(promise)), local_op_(local_op)
+   {
+      if (local_op->finished()) {
+         this->i_dependency_finished(local_op);
+      }
+   }
+
+   static ptr_t create(promise_ptr_t promise, op_ptr_t local_op)
+   {
+      typedef promised_operation<ResultType> me_t;
+      return ::std::make_shared<me_t>(priv_cookie(),
+                                      ::std::move(promise),
+                                      ::std::move(local_op));
+   }
+
+ private:
+   promise_ptr_t promise_;
+   op_ptr_t local_op_;
+
+   virtual void i_dependency_finished(const opbase_ptr_t &op) {
+      if (op != local_op_) {
+         throw ::std::runtime_error("A dependency I don't have finished.");
+      } else {
+         op_ptr_t my_op;
+         my_op.swap(local_op_);
+         if (my_op.is_error()) {
+            promise_->set_bad_result(my_op->error());
+         } else if (my_op.is_exception()) {
+            promise_->set_bad_result(my_op->exception());
+         } else {
+            transfer_value(promise_, my_op);
+         }
+      }
+   }
+   inline static void transfer_value(promise_ptr_t &promise, op_ptr_t &my_op);
+};
+
+template <typename ResultType>
+inline void
+promised_operation<ResultType>::transfer_value(promise_ptr_t &promise,
+                                               op_ptr_t &my_op)
+{
+   promise->set_result(my_op->result());
+}
+
+template <>
+inline void
+promised_operation<void>::transfer_value(promise_ptr_t &promise, op_ptr_t &)
+{
+   promise->set_result();
+}
+
 } // namespace sparkles
