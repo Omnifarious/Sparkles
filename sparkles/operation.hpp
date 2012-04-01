@@ -3,6 +3,8 @@
 #include <sparkles/operation_base.hpp>
 #include <exception>
 #include <system_error>
+#include <utility>
+#include <memory>
 
 namespace sparkles {
 
