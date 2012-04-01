@@ -185,7 +185,8 @@ work_queue::work_item_t work_queue::real_dequeue(impl_t &impl)
       removednode.reset(remove_from_queue(impl.queue_head_, impl.queue_tail_));
    }
    if (removednode != nullptr) {
-      work_item_t dequeued_item{::std::move(removednode->item_)};
+      work_item_t dequeued_item;
+      dequeued_item.swap(removednode->item_);
       {
          lock_guard lock(impl.deleted_queue_mutex_);
          removednode->next_ = impl.deleted_head_;

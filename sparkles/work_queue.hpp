@@ -69,6 +69,7 @@ class work_queue {
    //! Ugly private thing to make Fast Pimpl work.
    union impl_data {
       long long alignment1;
+      void *alignment2;
       char data[192];
    };
 
