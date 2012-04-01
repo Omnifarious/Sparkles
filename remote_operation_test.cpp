@@ -4,6 +4,7 @@
 #define _GLIBCXX_USE_SCHED_YIELD
 
 #include "test_error.hpp"
+#include "test_operations.hpp"
 
 #include <sparkles/errors.hpp>
 #include <sparkles/remote_operation.hpp>
@@ -181,7 +182,7 @@ BOOST_AUTO_TEST_CASE( void_bad_sets )
    BOOST_CHECK_THROW(fred.second->set_bad_result(make_exception_ptr()), invalid_result);
 }
 
-BOOST_AUTO_TEST_CASE( inter_thread )
+BOOST_AUTO_TEST_CASE( simple_inter_thread )
 {
    work_queue wq;
    remote_operation<int>::ptr_t op;
@@ -196,6 +197,101 @@ BOOST_AUTO_TEST_CASE( inter_thread )
    wq.dequeue()();
    BOOST_CHECK(op->finished());
    BOOST_CHECK_EQUAL(op->result(), 6);
+   ::std::this_thread::yield();
+   ::std::this_thread::sleep_for(::std::chrono::milliseconds(20));
+   BOOST_REQUIRE(promise_thread.joinable());
+   promise_thread.join();
+}
+
+BOOST_AUTO_TEST_CASE( int_inter_thread_success )
+{
+   typedef remote_operation<int>::promise::ptr_t promise_ptr_t;
+   work_queue wq;
+   finishedq_t other_thread_q;
+   remote_operation<int>::ptr_t op;
+   promise_ptr_t promise;
+   ::std::tie(op, promise) = remote_operation<int>::create(wq);
+   auto run = [&other_thread_q](promise_ptr_t promise) -> void {
+      auto int_op = nodep_op<int>::create("thread", other_thread_q, nullptr);
+      auto prom_op = promised_operation<int>::create(promise, int_op);
+      ::std::this_thread::yield();
+      ::std::this_thread::sleep_for(::std::chrono::milliseconds(10));
+      int_op->set_result(6);
+   };
+   ::std::thread promise_thread(run, ::std::move(promise));
+   BOOST_CHECK(!op->finished());
+   {
+      work_queue::work_item_t tmp;
+      BOOST_CHECK(!wq.try_dequeue(tmp));
+   }
+   wq.dequeue()();
+   BOOST_CHECK(op->finished());
+   BOOST_CHECK_EQUAL(op->result(), 6);
+   ::std::this_thread::yield();
+   ::std::this_thread::sleep_for(::std::chrono::milliseconds(20));
+   BOOST_REQUIRE(promise_thread.joinable());
+   promise_thread.join();
+}
+
+BOOST_AUTO_TEST_CASE( int_inter_thread_error )
+{
+   const auto the_error = make_error_code(test_error::some_error);
+   typedef remote_operation<int>::promise::ptr_t promise_ptr_t;
+   work_queue wq;
+   finishedq_t other_thread_q;
+   remote_operation<int>::ptr_t op;
+   promise_ptr_t promise;
+   ::std::tie(op, promise) = remote_operation<int>::create(wq);
+
+   auto run = [&other_thread_q, the_error](promise_ptr_t promise) -> void {
+      auto int_op = nodep_op<int>::create("thread", other_thread_q, nullptr);
+      auto prom_op = promised_operation<int>::create(promise, int_op);
+      ::std::this_thread::yield();
+      ::std::this_thread::sleep_for(::std::chrono::milliseconds(10));
+      int_op->set_bad_result(the_error);
+   };
+
+   ::std::thread promise_thread(run, ::std::move(promise));
+   BOOST_CHECK(!op->finished());
+   {
+      work_queue::work_item_t tmp;
+      BOOST_CHECK(!wq.try_dequeue(tmp));
+   }
+   wq.dequeue()();
+   BOOST_CHECK(op->finished());
+   BOOST_CHECK_EQUAL(op->error(), the_error);
+   ::std::this_thread::yield();
+   ::std::this_thread::sleep_for(::std::chrono::milliseconds(20));
+   BOOST_REQUIRE(promise_thread.joinable());
+   promise_thread.join();
+}
+
+BOOST_AUTO_TEST_CASE( int_inter_thread_exception )
+{
+   typedef remote_operation<int>::promise::ptr_t promise_ptr_t;
+   work_queue wq;
+   finishedq_t other_thread_q;
+   remote_operation<int>::ptr_t op;
+   promise_ptr_t promise;
+   ::std::tie(op, promise) = remote_operation<int>::create(wq);
+
+   auto run = [&other_thread_q](promise_ptr_t promise) -> void {
+      auto int_op = nodep_op<int>::create("thread", other_thread_q, nullptr);
+      auto prom_op = promised_operation<int>::create(promise, int_op);
+      ::std::this_thread::yield();
+      ::std::this_thread::sleep_for(::std::chrono::milliseconds(10));
+      int_op->set_bad_result(make_exception_ptr());
+   };
+
+   ::std::thread promise_thread(run, ::std::move(promise));
+   BOOST_CHECK(!op->finished());
+   {
+      work_queue::work_item_t tmp;
+      BOOST_CHECK(!wq.try_dequeue(tmp));
+   }
+   wq.dequeue()();
+   BOOST_CHECK(op->finished());
+   BOOST_CHECK_THROW(op->result(), test_exception);
    ::std::this_thread::yield();
    ::std::this_thread::sleep_for(::std::chrono::milliseconds(20));
    BOOST_REQUIRE(promise_thread.joinable());
