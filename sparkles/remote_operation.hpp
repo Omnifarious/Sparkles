@@ -217,6 +217,7 @@ class remote_operation<ResultType>::promise {
 
  public:
    typedef ::std::weak_ptr<remote_operation<ResultType> > weak_op_ptr_t;
+   typedef ::std::shared_ptr<promise> ptr_t;
 
    /*! \brief Construct a promise connected to the given remote_operation and
     * posting to the given work_queue.
@@ -300,6 +301,7 @@ class remote_operation<void>::promise {
 
  public:
    typedef ::std::weak_ptr<remote_operation<void> > weak_op_ptr_t;
+   typedef ::std::shared_ptr<promise> ptr_t;
 
    promise(const private_cookie &, const weak_op_ptr_t &dest,
            ::sparkles::work_queue &wq)
