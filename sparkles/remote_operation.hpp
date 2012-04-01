@@ -399,9 +399,9 @@ class promised_operation : public operation<ResultType>
       } else {
          op_ptr_t my_op;
          my_op.swap(local_op_);
-         if (my_op.is_error()) {
+         if (my_op->is_error()) {
             promise_->set_bad_result(my_op->error());
-         } else if (my_op.is_exception()) {
+         } else if (my_op->is_exception()) {
             promise_->set_bad_result(my_op->exception());
          } else {
             transfer_value(promise_, my_op);
