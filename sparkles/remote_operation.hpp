@@ -180,14 +180,27 @@ class remote_operation : public operation<ResultType> {
    //! The private_cookie ensures that you must use the create function.
    remote_operation(const private_cookie &) : operation<ResultType>({}) { }
 
+   //! A shared_ptr to me!
    typedef ::std::shared_ptr<remote_operation<ResultType> > ptr_t;
+   //! A shared_ptr to the master base class, operation_base
    typedef typename operation<ResultType>::opbase_ptr_t opbase_ptr_t;
+   //! The type of the result.
    typedef typename operation<ResultType>::result_t result_t;
 
    class promise;
    friend class promise;
 
-   //! Create a remote_operation and its associated promise.
+   /*! Create a remote_operation and its associated promise.
+    *
+    * \param [in] answerq The work_queue the promise is expected to deliver it's
+    * result to. It must stick around as long as the promise does.
+    *
+    * Actually, the promise will ignore the work_queue as soon as it's fulfilled
+    * and it's delivered its result to the work_queue. And if you can prevent a
+    * race condition between the remote_operation going away and the promise
+    * being fulfilled, the promise will ignore the work_queue is soon as its
+    * weak_ptr to the remote_operation disappears.
+    */
    static ::std::pair<ptr_t, ::std::shared_ptr<promise> >
    create(work_queue &answerq) {
       typedef remote_operation<ResultType> me_t;
@@ -353,7 +366,7 @@ class remote_operation<void>::promise {
  * work_queue wq;
  * auto rem_prom = remote_operation<int>::create(wq);
  * auto prom_op = promised_operation::create(rem_prom.second, rem_prom.first);
- * \code
+ * \endcode
  *
  * So don't do that. If you always hand off the promise to another thread and
  * you never share operation's between threads this should accomplish the goal.
@@ -372,6 +385,16 @@ class promised_operation : public operation<ResultType>
    typedef typename operation<ResultType>::opbase_ptr_t opbase_ptr_t;
    typedef ::std::shared_ptr<promised_operation<ResultType> > ptr_t;
 
+   /*! Construct a promised_operation.
+    *
+    * \param [in] promise The promise that will be fullfilled when local_op
+    * finishes.
+    * \param [in] local_op The operation that needs to finish before the promise
+    * can be fulfilled.
+    *
+    * Because of the priv_cookie argument, these cannot be constructed
+    * directly. They must be constructed by the create method.
+    */
    promised_operation(const priv_cookie &,
                       promise_ptr_t promise, op_ptr_t local_op)
         : operation<ResultType>({local_op}),
@@ -382,6 +405,7 @@ class promised_operation : public operation<ResultType>
       }
    }
 
+   //! Allocate a new promised_operation and return a shared_ptr to it.
    static ptr_t create(promise_ptr_t promise, op_ptr_t local_op)
    {
       typedef promised_operation<ResultType> me_t;
