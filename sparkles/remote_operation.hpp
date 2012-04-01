@@ -4,6 +4,7 @@
 #include <sparkles/work_queue.hpp>
 #include <sparkles/errors.hpp>
 #include <exception>
+#include <stdexcept>
 #include <system_error>
 #include <utility>
 #include <memory>
@@ -198,6 +199,7 @@ class remote_operation : public operation<ResultType> {
  private:
    //! Oddly enough, this will never be called for this class.
    virtual void i_dependency_finished(const opbase_ptr_t &) {
+      throw ::std::runtime_error("This object should have no dependencies.");
    }
 };
 
