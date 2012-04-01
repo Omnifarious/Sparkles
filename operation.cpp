@@ -5,6 +5,8 @@
 
 namespace sparkles {
 
+namespace priv {
+
 const ::std::error_code operation_with_error::no_error;
 
 void operation_with_error::result() const
@@ -79,5 +81,7 @@ void operation_with_error::set_bad_result(::std::error_code error)
       set_finished();
    }
 }
+
+} // namespace priv
 
 } // namespace sparkles

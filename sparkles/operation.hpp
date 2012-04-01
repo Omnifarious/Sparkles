@@ -6,9 +6,13 @@
 
 namespace sparkles {
 
+namespace priv {
+
 //! An operation that can fail with an error or exception.
 //
-// You are encouraged to use operation<void> instead of this class.
+// By design this class cannot be directly instantiated. It's meant to be a
+// helper abstract base class and is an implementation detail that may change in
+// the future.  You should use operation<void> instead.
 class operation_with_error : public operation_base
 {
  public:
@@ -85,11 +89,13 @@ class operation_with_error : public operation_base
    virtual void i_dependency_finished(const opbase_ptr_t &dependency) = 0;
 };
 
+} // namespace priv
+
 template <class ResultType> class operation;
 
 //! A specialization for an operation that returns nothing.
 template<>
-class operation<void> : public operation_with_error
+class operation<void> : public priv::operation_with_error
 {
  public:
    typedef ::std::shared_ptr<operation<void> > ptr_t;
@@ -112,7 +118,7 @@ class operation<void> : public operation_with_error
 //
 // ResultType must be copyable and default constructable.
 template <class ResultType>
-class operation : public operation_with_error
+class operation : public priv::operation_with_error
 {
  public:
    typedef typename ::std::remove_const<ResultType>::type result_t;
