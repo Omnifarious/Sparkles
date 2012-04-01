@@ -71,15 +71,33 @@ class operation_with_error : public operation_base
    // Throws an exception if this can't be accomplished.
    void set_result();
 
+   //! Static version of set_result that can be passed as a function pointer.
+   static void set_result_on(operation_with_error &op) { op.set_result(); }
+
+
    //! Set this as having been completed with an exception.
    //
    // Throws an exception if this can't be accomplished.
    void set_bad_result(::std::exception_ptr exception);
 
+   //! Static version of set_bad_result that can be passed as a function pointer.
+   static void set_bad_result_on(operation_with_error &op,
+                                 ::std::exception_ptr exception)
+   {
+      op.set_bad_result(::std::move(exception));
+   }
+
    //! Set this as having been completed with an ::std::error_code.
    //
    // Throws an exception if this can't be accomplished.
    void set_bad_result(::std::error_code error);
+
+   //! Static version of set_bad_result that can be passed as a function pointer.
+   static void set_bad_result_on(operation_with_error &op,
+                                 ::std::error_code error)
+   {
+      op.set_bad_result(::std::move(error));
+   }
 
  private:
    bool is_valid_;
