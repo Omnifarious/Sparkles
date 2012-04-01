@@ -17,8 +17,12 @@ test: test_all
 clean:
 	rm -f *.o *.gcov *.gcda *.gcno
 
-.PHONY: empty test
+.PHONY: empty test doxygen
 
 test_all: $(patsubst %.cpp,%.o,$(LIBCPP) $(TESTCPP))
 	$(CXX) $(CXXFLAGS) $(^) -o $(@) -lboost_unit_test_framework
 
+doxygen:
+	rm -rf docs/doxygen
+	mkdir -p docs/doxygen
+	doxygen

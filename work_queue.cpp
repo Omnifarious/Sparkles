@@ -27,6 +27,12 @@ template <unsigned int foo> struct fake {
 
 namespace sparkles {
 
+/*! \brief Yes, our own linked list node. Yes, I know <list> exists.
+ *
+ * I'm implementing a new linked list because I want careful control over
+ * exactly what is locked when and for how long. I want to carefully minimize
+ * the amount of time mutexes are held for.
+ */
 struct work_queue::node_t {
    node_t *next_;
    work_item_t item_;
@@ -34,6 +40,14 @@ struct work_queue::node_t {
    node_t() : next_(nullptr) {}
 };
 
+/*! \brief The real type stored in storage_
+ *
+ * The basic goal here is to avoid contending on a lock.
+ *
+ * The other goal is to avoid allocating node_t's. So the work_queue never
+ * deletes a node_t until it's deleted. It just re-uses old ones. This saves
+ * calls to the allocator and hopefully also improves locality of refence.
+ */
 struct work_queue::impl_t {
    semaphore numitems_;
    ::std::mutex queue_mutex_;

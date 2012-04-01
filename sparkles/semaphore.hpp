@@ -6,16 +6,17 @@
 
 namespace sparkles {
 
-//! A simple counting semaphore implemented with the Linux pthreads API.
-//
-// Unfortunately the base threading library doesn't have one of these.  It's
-// possible this could be implemented in terms of C++11s atomic operations, but
-// I didn't want to go through the effort.
-//
-// They can also be emulated with condition variables, but that seems very
-// inefficient.
-//
-// But, the current implementation renders this Linux specific.
+/*! \brief A simple counting semaphore implemented with the Linux pthreads API.
+ *
+ * Unfortunately the base threading library doesn't have one of these.  It's
+ * possible this could be implemented in terms of C++11s atomic operations, but
+ * I didn't want to go through the effort.
+ *
+ * They can also be emulated with condition variables, but that seems very
+ * inefficient.
+ *
+ * But, the current implementation renders this Linux specific.
+*/
 class semaphore
 {
  public:
@@ -66,11 +67,12 @@ class semaphore
       }
    }
 
-   //! What's the current count which may already be out-of-date.
-   //
-   // This value can change at any moment. It's useful for debugging and
-   // informational purposes, but relying on this function for anything serious
-   // will create race conditions.
+   /*! \brief What's the current count which may already be out-of-date.
+    *
+    * This value can change at any moment. It's useful for debugging and
+    * informational purposes, but relying on this function for anything serious
+    * will create race conditions.
+    */
    int getvalue() {
       int retval;
       if (sem_getvalue(&sem_, &retval) != 0) {

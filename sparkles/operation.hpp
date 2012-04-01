@@ -10,11 +10,12 @@ namespace sparkles {
 
 namespace priv {
 
-//! An operation that can fail with an error or exception.
-//
-// By design this class cannot be directly instantiated. It's meant to be a
-// helper abstract base class and is an implementation detail that may change in
-// the future.  You should use operation<void> instead.
+/*! \brief An operation that can fail with an error or exception.
+ *
+ * By design this class cannot be directly instantiated. It's meant to be a
+ * helper abstract base class and is an implementation detail that may change in
+ * the future.  You should use operation<void> instead.
+ */
 class operation_with_error : public operation_base
 {
  public:
@@ -27,31 +28,34 @@ class operation_with_error : public operation_base
       return is_valid_ && (error_ != no_error);
    }
 
-   //! Fetch the result.
-   //
-   // This results in the exception being re-thrown if the result is an
-   // exception.
-   //
-   // This will also result in a throw of ::std::system_error when the result
-   // is an error code.
-   //
-   // And if there is no result (i.e. is_valid() is false) an invalid_result
-   // exception will be thrown.
+   /*! \brief Fetch the result.
+    *
+    * This results in the exception being re-thrown if the result is an
+    * exception.
+    *
+    * This will also result in a throw of ::std::system_error when the result
+    * is an error code.
+    *
+    * And if there is no result (i.e. is_valid() is false) an invalid_result
+    * exception will be thrown.
+    */
    void result() const;
 
-   //! Fetch the error code.
-   //
-   // If is_error() is true, this will fetch the error code, otherwise
-   // invalid_result will be thrown.
+   /*! \brief Fetch the error code.
+    *
+    * If is_error() is true, this will fetch the error code, otherwise
+    * invalid_result will be thrown.
+    */
    ::std::error_code error() const;
 
-   //! Fetch the ::std::exception_ptr of the exception (if any).
-   //
-   // This returns the ::std::exception_ptr for the exception being held if
-   // there is one. If is_exception() returns false, this will throw
-   // invalid_result.
-   //
-   // This is needed in order to implement forwarding or wrapping operations.
+   /*! \brief Fetch the ::std::exception_ptr of the exception (if any).
+    *
+    * This returns the ::std::exception_ptr for the exception being held if
+    * there is one. If is_exception() returns false, this will throw
+    * invalid_result.
+    *
+    * This is needed in order to implement forwarding or wrapping operations.
+    */
    ::std::exception_ptr exception() const;
 
  protected:
@@ -66,18 +70,20 @@ class operation_with_error : public operation_base
    {
    }
 
-   //! Set this as having been completed without error.
-   //
-   // Throws an exception if this can't be accomplished.
+   /*! \brief Set this as having been completed without error.
+    *
+    * Throws an exception if this can't be accomplished.
+    */
    void set_result();
 
    //! Static version of set_result that can be passed as a function pointer.
    static void set_result_on(operation_with_error &op) { op.set_result(); }
 
 
-   //! Set this as having been completed with an exception.
-   //
-   // Throws an exception if this can't be accomplished.
+   /*! \brief Set this as having been completed with an exception.
+    *
+    * Throws an exception if this can't be accomplished.
+    */
    void set_bad_result(::std::exception_ptr exception);
 
    //! Static version of set_bad_result that can be passed as a function pointer.
@@ -87,9 +93,10 @@ class operation_with_error : public operation_base
       op.set_bad_result(::std::move(exception));
    }
 
-   //! Set this as having been completed with an ::std::error_code.
-   //
-   // Throws an exception if this can't be accomplished.
+   /*! \brief Set this as having been completed with an ::std::error_code.
+    *
+    * Throws an exception if this can't be accomplished.
+    */
    void set_bad_result(::std::error_code error);
 
    //! Static version of set_bad_result that can be passed as a function pointer.
@@ -140,9 +147,10 @@ class operation<void> : public priv::operation_with_error
    virtual void i_dependency_finished(const opbase_ptr_t &dependency) = 0;
 };
 
-//! An operation that returns a result.
-//
-// ResultType must be copyable and default constructable.
+/*! \brief An operation that returns a result.
+ *
+ * ResultType must be copyable and default constructable.
+ */
 template <class ResultType>
 class operation : public priv::operation_with_error
 {
@@ -150,16 +158,17 @@ class operation : public priv::operation_with_error
    typedef typename ::std::remove_const<ResultType>::type result_t;
    typedef ::std::shared_ptr<operation<ResultType> > ptr_t;
 
-   //! Fetch the result.
-   //
-   // This results in the exception being re-thrown if the result is an
-   // exception and it hasn't already been re-thrown by a prior fetch.
-   //
-   // This will also result in a throw of ::std::system_error when the result is
-   // an error code.
-   //
-   // And if there is no result (i.e. is_valid() is false) an invalid_result
-   // exception will be thrown.
+   /*! \brief Fetch the result.
+    *
+    * This results in the exception being re-thrown if the result is an
+    * exception and it hasn't already been re-thrown by a prior fetch.
+    *
+    * This will also result in a throw of ::std::system_error when the result is
+    * an error code.
+    *
+    * And if there is no result (i.e. is_valid() is false) an invalid_result
+    * exception will be thrown.
+    */
    result_t result() const {
       operation_with_error::result();
       return result_;

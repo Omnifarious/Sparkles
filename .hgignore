@@ -4,3 +4,4 @@ syntax: glob
 
 syntax: re
 ^test_all$
+^docs/doxygen$
