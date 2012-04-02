@@ -339,13 +339,17 @@ BOOST_AUTO_TEST_CASE( int_inter_thread_cancel )
       ::std::this_thread::yield();
       ::std::this_thread::sleep_for(::std::chrono::milliseconds(20));
       work_queue::work_item_t witem;
-      BOOST_REQUIRE(!wq.try_dequeue(witem));
+      bool dequeued = wq.try_dequeue(witem);
+      BOOST_CHECK(!dequeued);
+      if (dequeued) {
+         break;
+      }
    }
    BOOST_REQUIRE(promise_thread.joinable());
    promise_thread.join();
    {
       work_queue::work_item_t witem;
-      BOOST_REQUIRE(!wq.try_dequeue(witem));
+      BOOST_CHECK(!wq.try_dequeue(witem));
    }
 }
 
