@@ -50,7 +50,9 @@ BOOST_AUTO_TEST_CASE( int_valid )
    work_queue wq;
    auto fred = remote_operation<int>::create(wq);
    BOOST_CHECK(!fred.first->finished());
+   BOOST_CHECK(!fred.second->already_set());
    fred.second->set_result(6);
+   BOOST_CHECK(fred.second->already_set());
    BOOST_CHECK(!fred.first->finished());
    wq.dequeue()();
    BOOST_CHECK(fred.first->finished());
@@ -66,7 +68,9 @@ BOOST_AUTO_TEST_CASE( int_error )
    work_queue wq;
    auto fred = remote_operation<int>::create(wq);
    BOOST_CHECK(!fred.first->finished());
+   BOOST_CHECK(!fred.second->already_set());
    fred.second->set_bad_result(the_error);
+   BOOST_CHECK(fred.second->already_set());
    BOOST_CHECK(!fred.first->finished());
    wq.dequeue()();
    BOOST_CHECK(fred.first->finished());
@@ -82,7 +86,9 @@ BOOST_AUTO_TEST_CASE( int_exception )
    work_queue wq;
    auto fred = remote_operation<int>::create(wq);
    BOOST_CHECK(!fred.first->finished());
+   BOOST_CHECK(!fred.second->already_set());
    fred.second->set_bad_result(make_exception_ptr());
+   BOOST_CHECK(fred.second->already_set());
    BOOST_CHECK(!fred.first->finished());
    wq.dequeue()();
    BOOST_CHECK(fred.first->finished());
@@ -103,7 +109,9 @@ BOOST_AUTO_TEST_CASE( int_bad_sets )
    BOOST_CHECK_THROW(fred.second->set_bad_result(nullptr),
                      ::std::invalid_argument);
    BOOST_CHECK(!fred.first->finished());
+   BOOST_CHECK(!fred.second->already_set());
    fred.second->set_result(6);
+   BOOST_CHECK(fred.second->already_set());
    BOOST_CHECK(!fred.first->finished());
    wq.dequeue()();
    BOOST_CHECK(fred.first->finished());
@@ -119,7 +127,9 @@ BOOST_AUTO_TEST_CASE( void_valid )
    work_queue wq;
    auto fred = remote_operation<void>::create(wq);
    BOOST_CHECK(!fred.first->finished());
+   BOOST_CHECK(!fred.second->already_set());
    fred.second->set_result();
+   BOOST_CHECK(fred.second->already_set());
    BOOST_CHECK(!fred.first->finished());
    wq.dequeue()();
    BOOST_CHECK(fred.first->finished());
@@ -135,7 +145,9 @@ BOOST_AUTO_TEST_CASE( void_error )
    work_queue wq;
    auto fred = remote_operation<void>::create(wq);
    BOOST_CHECK(!fred.first->finished());
+   BOOST_CHECK(!fred.second->already_set());
    fred.second->set_bad_result(the_error);
+   BOOST_CHECK(fred.second->already_set());
    BOOST_CHECK(!fred.first->finished());
    wq.dequeue()();
    BOOST_CHECK(fred.first->finished());
@@ -151,7 +163,9 @@ BOOST_AUTO_TEST_CASE( void_exception )
    work_queue wq;
    auto fred = remote_operation<void>::create(wq);
    BOOST_CHECK(!fred.first->finished());
+   BOOST_CHECK(!fred.second->already_set());
    fred.second->set_bad_result(make_exception_ptr());
+   BOOST_CHECK(fred.second->already_set());
    BOOST_CHECK(!fred.first->finished());
    wq.dequeue()();
    BOOST_CHECK(fred.first->finished());
@@ -172,7 +186,9 @@ BOOST_AUTO_TEST_CASE( void_bad_sets )
    BOOST_CHECK_THROW(fred.second->set_bad_result(nullptr),
                      ::std::invalid_argument);
    BOOST_CHECK(!fred.first->finished());
+   BOOST_CHECK(!fred.second->already_set());
    fred.second->set_result();
+   BOOST_CHECK(fred.second->already_set());
    BOOST_CHECK(!fred.first->finished());
    wq.dequeue()();
    BOOST_CHECK(fred.first->finished());
