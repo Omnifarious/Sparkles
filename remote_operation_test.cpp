@@ -314,6 +314,41 @@ BOOST_AUTO_TEST_CASE( int_inter_thread_exception )
    promise_thread.join();
 }
 
+BOOST_AUTO_TEST_CASE( int_inter_thread_cancel )
+{
+   typedef remote_operation<int>::promise::ptr_t promise_ptr_t;
+   work_queue wq;
+   finishedq_t other_thread_q;
+   remote_operation<int>::ptr_t op;
+   promise_ptr_t promise;
+   ::std::tie(op, promise) = remote_operation<int>::create(wq);
+   auto run = [&other_thread_q](promise_ptr_t promise) -> void {
+      ::std::this_thread::yield();
+      ::std::this_thread::sleep_for(::std::chrono::milliseconds(10));
+      if (promise->still_needed()) {
+         auto int_op = nodep_op<int>::create("thread", other_thread_q, nullptr);
+         auto prom_op = promised_operation<int>::create(promise, int_op);
+         int_op->set_result(6);
+      }
+   };
+   ::std::thread promise_thread(run, ::std::move(promise));
+   // This should cause the promise result to never be queued as the operation
+   // that was waiting for it to be fulfilled went away.
+   op = nullptr;
+   for (int i = 0; i < 5; ++i) {
+      ::std::this_thread::yield();
+      ::std::this_thread::sleep_for(::std::chrono::milliseconds(20));
+      work_queue::work_item_t witem;
+      BOOST_REQUIRE(!wq.try_dequeue(witem));
+   }
+   BOOST_REQUIRE(promise_thread.joinable());
+   promise_thread.join();
+   {
+      work_queue::work_item_t witem;
+      BOOST_REQUIRE(!wq.try_dequeue(witem));
+   }
+}
+
 BOOST_AUTO_TEST_SUITE_END()
 
 } // namespace test
