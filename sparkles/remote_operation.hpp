@@ -293,7 +293,9 @@ class remote_operation<ResultType>::promise {
                               "already been set.");
       } else {
          used_ = true;
-         wq_.enqueue(deliver_result(dest_, ::std::move(result)));
+         if (dest_.lock()) {
+            wq_.enqueue(deliver_result(dest_, ::std::move(result)));
+         }
       }
    }
 
