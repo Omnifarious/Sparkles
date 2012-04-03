@@ -298,6 +298,48 @@ BOOST_AUTO_TEST_CASE( still_needed_after_q )
    }
 }
 
+BOOST_AUTO_TEST_CASE( broken_promise_thrown_int )
+{
+   work_queue wq;
+   remote_operation<int>::ptr_t op;
+   remote_operation<int>::promise::ptr_t promise;
+   ::std::tie(op, promise) = remote_operation<int>::create(wq);
+   BOOST_CHECK(promise->still_needed());
+   BOOST_CHECK(!promise->already_set());
+   BOOST_CHECK(!op->finished());
+   BOOST_CHECK_EQUAL(promise.use_count(), 1);
+   promise = nullptr;
+   BOOST_CHECK(!op->finished());
+   {
+      work_queue::work_item_t tmp;
+      BOOST_CHECK(wq.try_dequeue(tmp));
+      tmp();
+   }
+   BOOST_CHECK(op->finished());
+   BOOST_CHECK_THROW(op->result(), broken_promise);
+}
+
+BOOST_AUTO_TEST_CASE( broken_promise_thrown_void )
+{
+   work_queue wq;
+   remote_operation<void>::ptr_t op;
+   remote_operation<void>::promise::ptr_t promise;
+   ::std::tie(op, promise) = remote_operation<void>::create(wq);
+   BOOST_CHECK(promise->still_needed());
+   BOOST_CHECK(!promise->already_set());
+   BOOST_CHECK(!op->finished());
+   BOOST_CHECK_EQUAL(promise.use_count(), 1);
+   promise = nullptr;
+   BOOST_CHECK(!op->finished());
+   {
+      work_queue::work_item_t tmp;
+      BOOST_CHECK(wq.try_dequeue(tmp));
+      tmp();
+   }
+   BOOST_CHECK(op->finished());
+   BOOST_CHECK_THROW(op->result(), broken_promise);
+}
+
 BOOST_AUTO_TEST_CASE( simple_inter_thread )
 {
    work_queue wq;
