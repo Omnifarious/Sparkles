@@ -217,6 +217,42 @@ class remote_operation : public operation<ResultType> {
    }
 };
 
+/*! \brief This exception is thrown when a promise is destroyed without being
+ * fulfilled.
+ *
+ * It is not thrown in the destructor of the promise because throwing things in
+ * destructors is a very bad idea in general, and the cases in which you should
+ * do so are even more limited than, say, the cases in which you should use a
+ * bare pointer, or the cases in which you should make the data members of a
+ * class with virtual functions public.
+ *
+ * It is, instead, posted to the work_queue of the thread that holds the
+ * operation who's promise is being broken. So the promise breaker is not
+ * informed via exception, the entity who's promise has been broken is.
+ *
+ * The constructors are private on purpose. This is to discourage people from
+ * using the broken_promise exception to indicate some sort of random
+ * failure. Only a promise object can easily create (and thus throw) a
+ * broken_promise exception.
+ */
+class broken_promise : public ::std::runtime_error {
+ private:
+   //! Make sure only promise objects can easily throw these.
+   template <typename ResultType>
+   friend class remote_operation<ResultType>::promise;
+
+   //! Construct with a C string explanation
+   explicit broken_promise(const char *what_arg)
+        : runtime_error(what_arg)
+   {
+   }
+   //! Construct with a ::std::string explanation
+   explicit broken_promise(const ::std::string &what_arg)
+        : runtime_error(what_arg)
+   {
+   }
+};
+
 /*! \brief The class that's used in the other thread to send back a result.
  *
  * When you have an answer for the other thread, use the set_result or
@@ -224,8 +260,6 @@ class remote_operation : public operation<ResultType> {
  *
  * You may only call one of those methods once.  If you call them again you will
  * get a bad_result exception.
- *
- * \todo The destructor needs to force a broken_promise exception in the caller.
  */
 template <typename ResultType>
 class remote_operation<ResultType>::promise {
@@ -245,6 +279,24 @@ class remote_operation<ResultType>::promise {
            ::sparkles::work_queue &wq)
         : dest_(dest), wq_(wq), used_(false)
    {
+   }
+
+   //! Destroy a promise and send a broken_promise if unfulfilled.
+   virtual ~promise() noexcept(true) {
+      if (still_needed()) {
+         broken_promise exc{"Promised destroyed without being fulfilled."};
+         try {
+            typedef priv::deliver_exception<
+               remote_operation<ResultType>::set_bad_result_on
+               > delivery_func_t;
+            bool fakeused = false;
+            delivery_func_t::enqueue_me(fakeused, wq_, dest_,
+                                        make_exception_ptr(::std::move(exc)));
+         } catch (...) {
+            // I don't think enqueue_me will ever throw an exception, but just
+            // in case, it should be eaten before escaping the destructor.
+         }
+      }
    }
 
    //! Is something still expecting this promise to be fulfilled?
@@ -310,8 +362,6 @@ class remote_operation<ResultType>::promise {
  * See the documentation for the non-specialized promise type.
  *
  * There has GOT to be a better way to do this than all this duplicate code.
- *
- * \todo The destructor needs to force a broken_promise exception in the caller.
  */
 template <>
 class remote_operation<void>::promise {
@@ -325,6 +375,24 @@ class remote_operation<void>::promise {
            ::sparkles::work_queue &wq)
         : dest_(dest), wq_(wq)
    {
+   }
+
+   //! Destroy a promise and send a broken_promise if unfulfilled.
+   virtual ~promise() noexcept(true) {
+      if (still_needed()) {
+         broken_promise exc{"Promised destroyed without being fulfilled."};
+         try {
+            typedef priv::deliver_exception<
+               remote_operation<void>::set_bad_result_on
+               > delivery_func_t;
+            bool fakeused = false;
+            delivery_func_t::enqueue_me(fakeused, wq_, dest_,
+                                        make_exception_ptr(::std::move(exc)));
+         } catch (...) {
+            // I don't think enqueue_me will ever throw an exception, but just
+            // in case, it should be eaten before escaping the destructor.
+         }
+      }
    }
 
    bool still_needed() const { return !used_ && dest_.lock(); }
