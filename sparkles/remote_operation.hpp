@@ -11,152 +11,6 @@
 
 namespace sparkles {
 
-namespace priv {
-
-/*! \brief Private implementation detail, Do not use.
- *
- * Utility class to reduce template bloat by abstracting out non-type dependent
- * code.
- *
- * Uses the trick that you can have a pointer to a function as a template
- * parameter to allow an otherwise inaccessible (because of access specifiers)
- * function to be passed in and used.
- */
-template <void (*func)(operation_with_error &)>
-class deliver_nothing {
- public:
-   typedef deliver_nothing<func> me_t;
-
-   deliver_nothing(::std::weak_ptr<operation_with_error> wdest)
-        : wdest_(::std::move(wdest))
-   {
-   }
-
-   void operator()() {
-      auto dest = wdest_.lock();
-      if (dest) {
-         func(*(dest.get()));
-      }
-   }
-
-   static void enqueue_me(bool &used, ::sparkles::work_queue &wq,
-                          ::std::weak_ptr<operation_with_error> wdest)
-   {
-      if (used) {
-         throw invalid_result("Attempt to set a result that's "
-                              "already been set.");
-      } else {
-         used = true;
-         if (wdest.lock()) {
-            wq.enqueue(me_t(wdest));
-         }
-      }
-   }
-
- private:
-   ::std::weak_ptr<operation_with_error> wdest_;
-};
-
-/*! \brief Private implementation detail, Do not use.
- *
- * Utility class to reduce template bloat by abstracting out non-type dependent
- * code.
- *
- * Uses the trick that you can have a pointer to a function as a template
- * parameter to allow an otherwise inaccessible (because of access specifiers)
- * function to be passed in and used.
- */
-template <void (*func)(operation_with_error &, ::std::exception_ptr)>
-class deliver_exception {
- public:
-   typedef deliver_exception<func> me_t;
-
-   deliver_exception(::std::weak_ptr<operation_with_error> wdest,
-                     ::std::exception_ptr exception)
-        : wdest_(::std::move(wdest)), exception_(::std::move(exception))
-   {
-   }
-
-   void operator()() {
-      auto dest = wdest_.lock();
-      if (dest) {
-         func(*(dest.get()), exception_);
-      }
-   }
-
-   static void enqueue_me(bool &used, ::sparkles::work_queue &wq,
-                          ::std::weak_ptr<operation_with_error> wdest,
-                          ::std::exception_ptr exception)
-   {
-      if (exception == nullptr) {
-         throw ::std::invalid_argument("Cannot set a null exception result.");
-      } else if (used) {
-         throw invalid_result("Attempt to set a result that's "
-                              "already been set.");
-      } else {
-         used = true;
-         if (wdest.lock()) {
-            wq.enqueue(me_t(wdest, ::std::move(exception)));
-         }
-      }
-   }
-
- private:
-   ::std::weak_ptr<operation_with_error> wdest_;
-   const ::std::exception_ptr exception_;
-};
-
-/*! \brief Private implementation detail, Do not use.
- *
- * Utility class to reduce template bloat by abstracting out non-type dependent
- * code.
- *
- * Uses the trick that you can have a pointer to a function as a template
- * parameter to allow an otherwise inaccessible (because of access specifiers)
- * function to be passed in and used.
- */
-template <void (*func)(operation_with_error &, ::std::error_code)>
-class deliver_errc {
- public:
-   typedef deliver_errc<func> me_t;
-
-   deliver_errc(::std::weak_ptr<operation_with_error> wdest,
-                ::std::error_code err)
-        : wdest_(::std::move(wdest)), err_(::std::move(err))
-   {
-   }
-
-   void operator()() {
-      auto dest = wdest_.lock();
-      if (dest) {
-         func(*(dest.get()), err_);
-      }
-   }
-
-   static void enqueue_me(bool &used, ::sparkles::work_queue &wq,
-                          ::std::weak_ptr<operation_with_error> wdest,
-                          ::std::error_code err)
-   {
-      if (err == ::std::error_code()) {
-         throw ::std::invalid_argument("Cannot set a no-error error result.");
-      } else if (used) {
-         throw invalid_result("Attempt to set a result that's "
-                              "already been set.");
-      } else {
-         used = true;
-         if (wdest.lock()) {
-            wq.enqueue(me_t(wdest, ::std::move(err)));
-         }
-      }
-   }
-
- private:
-   ::std::weak_ptr<operation_with_error> wdest_;
-   const ::std::error_code err_;
-};
-
-} // namespace priv
-
 /*! \brief An operation that stands in for a result from a different thread.
  *
  * This class delivers its result when an object representing that result is
@@ -204,8 +58,8 @@ class remote_operation : public operation<ResultType> {
    static ::std::pair<ptr_t, ::std::shared_ptr<promise> >
    create(work_queue &answerq) {
       typedef remote_operation<ResultType> me_t;
-      auto remop = ::std::make_shared<me_t>(private_cookie());
-      auto prom = ::std::make_shared<promise>(private_cookie(), remop, answerq);
+      auto remop = ::std::make_shared<me_t>(private_cookie{});
+      auto prom = ::std::make_shared<promise>(private_cookie{}, remop, answerq);
       register_as_dependent(remop);
       return ::std::pair<ptr_t, ::std::shared_ptr<promise> >(remop, prom);
    }
@@ -264,11 +118,30 @@ class broken_promise : public ::std::runtime_error {
 template <typename ResultType>
 class remote_operation<ResultType>::promise {
    friend class remote_operation<ResultType>;
+   class delivery;
+   friend class delivery;
 
  public:
    typedef ::std::weak_ptr<remote_operation<ResultType> > weak_op_ptr_t;
    typedef ::std::shared_ptr<promise> ptr_t;
 
+ private:
+   class delivery : public priv::op_result<ResultType> {
+    public:
+      delivery(weak_op_ptr_t dest) : dest_(dest) { }
+
+      void operator ()() {
+         auto lockeddest = dest_.lock();
+         if (lockeddest) {
+            promise::move_into(::std::move(*this), lockeddest);
+         }
+      }
+
+    private:
+      weak_op_ptr_t dest_;
+   };
+
+ public:
    /*! \brief Construct a promise connected to the given remote_operation and
     * posting to the given work_queue.
     *
@@ -277,7 +150,7 @@ class remote_operation<ResultType>::promise {
     */
    promise(const private_cookie &, const weak_op_ptr_t &dest,
            ::sparkles::work_queue &wq)
-        : dest_(dest), wq_(wq), used_(false)
+        : dest_(dest), wq_(wq), fulfilled_(false)
    {
    }
 
@@ -286,12 +159,9 @@ class remote_operation<ResultType>::promise {
       if (still_needed()) {
          broken_promise exc{"Promised destroyed without being fulfilled."};
          try {
-            typedef priv::deliver_exception<
-               remote_operation<ResultType>::set_bad_result_on
-               > delivery_func_t;
-            bool fakeused = false;
-            delivery_func_t::enqueue_me(fakeused, wq_, dest_,
-                                        make_exception_ptr(::std::move(exc)));
+            delivery outbound(dest_);
+            outbound.set_bad_result(::std::make_exception_ptr(::std::move(exc)));
+            wq_.enqueue(::std::move(outbound));
          } catch (...) {
             // I don't think enqueue_me will ever throw an exception, but just
             // in case, it should be eaten before escaping the destructor.
@@ -300,130 +170,86 @@ class remote_operation<ResultType>::promise {
    }
 
    //! Is something still expecting this promise to be fulfilled?
-   bool still_needed() const { return !used_ && dest_.lock(); }
+   bool still_needed() const { return !fulfilled_ && dest_.lock(); }
 
    //! Has this promise already been fulfilled?
-   bool already_set() const { return used_; }
+   bool fulfilled() const { return fulfilled_; }
 
    //! Fulfill this promise with an error code.
    void set_bad_result(::std::error_code err) {
-      typedef priv::deliver_errc<
-         remote_operation<ResultType>::set_bad_result_on
-         > delivery_func_t;
-      delivery_func_t::enqueue_me(used_, wq_, dest_, ::std::move(err));
+      if (still_needed()) {
+         delivery outbound(dest_);
+         outbound.set_bad_result(err);
+         wq_.enqueue(::std::move(outbound));
+      } else if (fulfilled()) {
+         throw invalid_result("Attempt to set a result that's already been "
+                              "set.");
+      }
+      fulfilled_ = true;
    }
 
    //! Fulfill this promise with an exception.
    void set_bad_result(::std::exception_ptr exception) {
-      typedef priv::deliver_exception<
-         remote_operation<ResultType>::set_bad_result_on
-         > delivery_func_t;
-      delivery_func_t::enqueue_me(used_, wq_, dest_, ::std::move(exception));
+      if (still_needed()) {
+         delivery outbound(dest_);
+         outbound.set_bad_result(exception);
+         wq_.enqueue(::std::move(outbound));
+      } else if (fulfilled()) {
+         throw invalid_result("Attempt to set a result that's already been "
+                              "set.");
+      }
+      fulfilled_ = true;
    }
 
    //! Fulfill this promise with an actual result.
-   void set_result(ResultType result) {
-      class deliver_result {
-       public:
-         deliver_result(weak_op_ptr_t dest, ResultType result)
-              : dest_(dest), result_(::std::move(result))
-         {}
-
-         void operator ()() {
-            auto dest = dest_.lock();
-            if (dest) {
-               dest->set_result(::std::move(result_));
-            }
-         }
-
-       private:
-         weak_op_ptr_t dest_;
-         ResultType result_;
-      };
-      if (used_) {
-         throw invalid_result("Attempt to set a result that's "
-                              "already been set.");
-      } else {
-         used_ = true;
-         if (dest_.lock()) {
-            wq_.enqueue(deliver_result(dest_, ::std::move(result)));
-         }
-      }
-   }
-
- private:
-   weak_op_ptr_t dest_;
-   ::sparkles::work_queue &wq_;
-   bool used_;
-};
-
-/*! \brief A specialization of promise for void promises.
- *
- * See the documentation for the non-specialized promise type.
- *
- * There has GOT to be a better way to do this than all this duplicate code.
- */
-template <>
-class remote_operation<void>::promise {
-   friend class remote_operation<void>;
-
- public:
-   typedef ::std::weak_ptr<remote_operation<void> > weak_op_ptr_t;
-   typedef ::std::shared_ptr<promise> ptr_t;
-
-   promise(const private_cookie &, const weak_op_ptr_t &dest,
-           ::sparkles::work_queue &wq)
-        : dest_(dest), wq_(wq)
-   {
-   }
-
-   //! Destroy a promise and send a broken_promise if unfulfilled.
-   virtual ~promise() noexcept(true) {
+   template<
+      typename U = ResultType
+      , typename ::std::enable_if<
+           !::std::is_void<U>::value
+           , int
+           >::type = 0
+      >
+   void set_result(U res) {
       if (still_needed()) {
-         broken_promise exc{"Promised destroyed without being fulfilled."};
-         try {
-            typedef priv::deliver_exception<
-               remote_operation<void>::set_bad_result_on
-               > delivery_func_t;
-            bool fakeused = false;
-            delivery_func_t::enqueue_me(fakeused, wq_, dest_,
-                                        make_exception_ptr(::std::move(exc)));
-         } catch (...) {
-            // I don't think enqueue_me will ever throw an exception, but just
-            // in case, it should be eaten before escaping the destructor.
-         }
+         delivery outbound(dest_);
+         outbound.set_result(::std::move(res));
+         wq_.enqueue(::std::move(outbound));
+      } else if (fulfilled()) {
+         throw invalid_result("Attempt to set a result that's already been "
+                              "set.");
       }
+      fulfilled_ = true;
    }
 
-   bool still_needed() const { return !used_ && dest_.lock(); }
-
-   bool already_set() const { return used_; }
-
-   void set_bad_result(::std::error_code err) {
-      typedef priv::deliver_errc<
-         remote_operation<void>::set_bad_result_on
-         > delivery_func_t;
-      delivery_func_t::enqueue_me(used_, wq_, dest_, ::std::move(err));
-   }
-
-   void set_bad_result(::std::exception_ptr exception) {
-      typedef priv::deliver_exception<
-         remote_operation<void>::set_bad_result_on
-         > delivery_func_t;
-      delivery_func_t::enqueue_me(used_, wq_, dest_, ::std::move(exception));
-   }
-
+   //! Fulfill this promise with a void result.
+   template<
+      typename U = ResultType
+      , typename ::std::enable_if<
+           ::std::is_void<U>::value
+           , int
+           >::type = 0
+      >
    void set_result() {
-      typedef priv::deliver_nothing<
-         remote_operation<void>::set_result_on
-         > delivery_func_t;
-      delivery_func_t::enqueue_me(used_, wq_, dest_);
+      if (still_needed()) {
+         delivery outbound(dest_);
+         outbound.set_result();
+         wq_.enqueue(::std::move(outbound));
+      } else if (fulfilled()) {
+         throw invalid_result("Attempt to set a result that's already been "
+                              "set.");
+      }
+      fulfilled_ = true;
    }
 
  private:
    weak_op_ptr_t dest_;
    ::sparkles::work_queue &wq_;
-   bool used_;
+   bool fulfilled_;
+
+   static void move_into(priv::op_result<ResultType> &&result,
+                         remote_operation<ResultType>::ptr_t lockeddest) {
+      lockeddest->move_from(::std::move(result));
+   }
 };
 
 /*! \brief This represents an operation who's result is promised to another
@@ -496,31 +322,11 @@ class promised_operation : public operation<ResultType>
       } else {
          op_ptr_t my_op;
          my_op.swap(local_op_);
-         if (my_op->is_error()) {
-            promise_->set_bad_result(my_op->error());
-         } else if (my_op->is_exception()) {
-            promise_->set_bad_result(my_op->exception());
-         } else {
-            transfer_value(promise_, my_op);
-         }
+         remove_dependency(op);
+         copy_from_to(*my_op, *this);
+         copy_to(*promise_);
       }
    }
-   inline static void transfer_value(promise_ptr_t &promise, op_ptr_t &my_op);
 };
-
-template <typename ResultType>
-inline void
-promised_operation<ResultType>::transfer_value(promise_ptr_t &promise,
-                                               op_ptr_t &my_op)
-{
-   promise->set_result(my_op->result());
-}
-
-template <>
-inline void
-promised_operation<void>::transfer_value(promise_ptr_t &promise, op_ptr_t &)
-{
-   promise->set_result();
-}
 
 } // namespace sparkles
