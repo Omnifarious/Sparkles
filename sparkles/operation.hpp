@@ -265,26 +265,26 @@ void value_mover(empty_type &&t, Other &other)
 template <typename T>
 class op_result : public op_result_base {
  public:
-   template<
-      typename U = T
-      , typename ::std::enable_if<
-           !::std::is_void<U>::value
-           , int
-           >::type = 0
-      >
-   void set_result(U res) {
+   /*! \brief Set a non-void, non-error result.
+    *
+    * Throws an exception if this object already contains a value.
+    */
+   template<typename U = T>
+   // This causes an SFINAE failure in expansion if T is void.
+   typename ::std::enable_if<!::std::is_void<U>::value, void>::type
+   set_result(U res) {
       op_result_base::set_result();
       val_ = ::std::move(res);
    }
 
-   template<
-      typename U = T
-      , typename ::std::enable_if<
-           ::std::is_void<U>::value
-           , int
-           >::type = 0
-      >
-   void set_result() {
+   /*! \brief Set a non-error, but void result.
+    *
+    * Throws an exception if this object already contains a value.
+    */
+   template<typename U = T>
+   // This causes an SFINAE failure in expansion if T is not void.
+   typename ::std::enable_if< ::std::is_void<U>::value, void>::type
+   set_result() {
       op_result_base::set_result();
    }
 
@@ -407,27 +407,22 @@ class operation : public operation_base
     *
     * Throws an exception if this can't be accomplished.
     */
-   template<
-      typename U = ResultType
-      , typename ::std::enable_if<
-           !::std::is_void<U>::value
-           , int
-           >::type = 0
-      >
-   void set_result(U res) {
-      result_.set_result(::std::move(res));
+   template <typename U = ResultType>
+   // The following fails template expansion if ResultType is void.
+   typename ::std::enable_if<!::std::is_void<U>::value, void>::type
+   set_result(U result) {
+      result_.set_result(::std::move(result));
       set_finished();
    }
 
-   //! Set this as having been completed without error for void returns.
-   template<
-      typename U = ResultType
-      , typename ::std::enable_if<
-           ::std::is_void<U>::value
-           , int
-           >::type = 0
-      >
-   void set_result() {
+   /*! \brief Set this void operation as having been completed without error.
+    *
+    * Throws an exception if this can't be accomplished.
+    */
+   template <typename U = ResultType>
+   // The following fails template expansion if ResultType is not void.
+   typename ::std::enable_if< ::std::is_void<U>::value, void>::type
+   set_result() {
       result_.set_result();
       set_finished();
    }
