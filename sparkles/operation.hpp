@@ -40,27 +40,6 @@ class op_result_base {
    //! Defaults to holding nothing.
    op_result_base() : type_(stored_type::nothing) { }
 
-   //! Copying is the unsurprising default.
-   op_result_base(const op_result_base &) = default;
-   //! Move constructing results in the moved from result being 'nothing'.
-   op_result_base(op_result_base &&other)
-        : type_(other.type_),
-          error_(::std::move(other.error_)),
-          exception_(::std::move(other.exception_))
-   {
-      other.type_ = stored_type::nothing;
-   }
-   //! Moving results in the moved from result being 'nothing'.
-   op_result_base &operator =(op_result_base &&other) {
-      type_ = other.type_;
-      error_ = ::std::move(other.error_);
-      exception_ = ::std::move(other.exception_);
-      other.type_ = stored_type::nothing;
-      return *this;
-   }
-   //! Copying is the unsurprising default.
-   op_result_base &operator =(const op_result_base &) = default;
-
    //! Does this contains a value, i.e. is the stored type not 'nothing'?
    bool is_valid() const     { return type_ != stored_type::nothing; }
 
@@ -205,6 +184,59 @@ class op_result_base {
    }
 
  protected:
+   /*! \brief Copying is the unsurprising default. Protected to avoid slicing.
+    */
+   op_result_base(const op_result_base &) = default;
+   /*! \brief Move constructing results in the moved from result being
+    *  'nothing'.  Protected to avoid slicing.
+    */
+   op_result_base(op_result_base &&other)
+        : type_(other.type_),
+          error_(::std::move(other.error_)),
+          exception_(::std::move(other.exception_))
+   {
+      other.type_ = stored_type::nothing;
+   }
+   /*! \brief Moving results in the moved from result being 'nothing'. Protected
+    *  to avoid slicing.
+    */
+   const op_result_base &operator =(op_result_base &&other) {
+      throw_on_set();
+      type_ = other.type_;
+      switch (type_) {
+       case stored_type::error:
+         error_ = ::std::move(other.error_);
+         break;
+       case stored_type::exception:
+         exception_ = ::std::move(other.exception_);
+         break;
+       case stored_type::nothing:
+       case stored_type::value:
+         break;
+      }
+      other.type_ = stored_type::nothing;
+      return *this;
+   }
+   /*! \brief Copying is basically the default except throwing if already
+    *  set. Protected to avoid slicing.
+    */
+   const op_result_base &operator =(const op_result_base &other) {
+      throw_on_set();
+      type_ = other.type_;
+      switch (type_) {
+       case stored_type::error:
+         error_ = ::std::move(other.error_);
+         break;
+       case stored_type::exception:
+         exception_ = ::std::move(other.exception_);
+         break;
+       case stored_type::nothing:
+       case stored_type::value:
+         break;
+      }
+      return *this;
+   }
+
    //! If the result stored isn't of the given type, throw an error.
    void throw_fetching_bad_result_type(const stored_type check) const
    {
