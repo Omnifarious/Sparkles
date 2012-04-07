@@ -11,15 +11,38 @@ namespace sparkles {
 
 namespace priv {
 
+/*! \brief Implementation detail... a class to hold the result of an operation.
+ *
+ * This exists to have a place to put all the non-type dependent
+ * operations. Hopefully this will reduce the amount of generated code
+ * significantly.
+ *
+ * Basically, this is a variant that can hold one of 4 different types. Either
+ * it can hold 'nothing', it can hold 'success', it can hold an 'exception_ptr'
+ * to a thrown exception, or it can hold an ::std::error_code.
+ *
+ * The template subclass op_result<T> can hold an arbitary type as the return
+ * value of the operation instead of simply 'success'. That's why the 'success'
+ * type is called 'value'.
+ *
+ * Another odd feature is that a value, once set, cannot be changed. It can move
+ * from 'nothing' to holding one of the other three values, and after that,
+ * attempts to mutate it through anything another than a 'move' operation result
+ * in an exception being thrown.
+ */
 class op_result_base {
  public:
+   //! The sort of value currently stored in this variant.
    enum class stored_type : ::std::uint8_t {
       nothing, value, exception, error
    };
 
+   //! Defaults to holding nothing.
    op_result_base() : type_(stored_type::nothing) { }
 
+   //! Copying is the unsurprising default.
    op_result_base(const op_result_base &) = default;
+   //! Move constructing results in the moved from result being 'nothing'.
    op_result_base(op_result_base &&other)
         : type_(other.type_),
           error_(::std::move(other.error_)),
@@ -27,6 +50,7 @@ class op_result_base {
    {
       other.type_ = stored_type::nothing;
    }
+   //! Moving results in the moved from result being 'nothing'.
    op_result_base &operator =(op_result_base &&other) {
       type_ = other.type_;
       error_ = ::std::move(other.error_);
@@ -34,14 +58,20 @@ class op_result_base {
       other.type_ = stored_type::nothing;
       return *this;
    }
+   //! Copying is the unsurprising default.
    op_result_base &operator =(const op_result_base &) = default;
 
+   //! Does this contains a value, i.e. is the stored type not 'nothing'?
    bool is_valid() const     { return type_ != stored_type::nothing; }
 
+   //! Does this hold an ::std::error_code value?
    bool is_error() const     { return type_ == stored_type::error; }
+   //! Does this hold an ::std::exception_ptr value?
    bool is_exception() const { return type_ == stored_type::exception; }
+   //! Does this hold a 'success' value?
    bool is_value() const     { return type_ == stored_type::value; }
 
+   //! Set this object to contain an ::std::error_code result.
    void set_bad_result(::std::error_code err) {
       if (err == ::std::error_code{}) {
          throw ::std::invalid_argument("Cannot set a no-error error result.");
@@ -50,6 +80,7 @@ class op_result_base {
       type_ = stored_type::error;
       error_ = ::std::move(err);
    }
+   //! Set this object to contain an ::std::exception_ptr result.
    void set_bad_result(::std::exception_ptr exception) {
       if (exception == ::std::exception_ptr{}) {
          throw ::std::invalid_argument("Cannot set a null exception result.");
@@ -59,6 +90,18 @@ class op_result_base {
       exception_ = ::std::move(exception);
    }
 
+   /*! \brief Fetch the result.
+    *
+    * If the result hasn't been set (i.e. it's still 'nothing') this throws an
+    * invalid_result exception.
+    *
+    * If the result is an ::std::exception_ptr this exception is rethrown.
+    *
+    * If the result is an ::std::error_code the error is thrown inside of a
+    * ::std::system_error exception.
+    *
+    * If the result is 'success' this function merely returns.
+    */
    void result() const {
       switch (type_) {
        case stored_type::nothing:
@@ -74,15 +117,20 @@ class op_result_base {
          break;
       }
    }
+   //! Fetch the ::std::error_code or throw an error if it's not one.
    ::std::error_code error() const {
       throw_fetching_bad_result_type(stored_type::error);
       return error_;
    }
+   //! Fetch the ::std::exception_ptr or throw an error if it's not one.
    ::std::exception_ptr exception() const {
       throw_fetching_bad_result_type(stored_type::exception);
       return exception_;
    }
 
+   /*! \brief Just like result() except that it fetches the result destructively
+    *  with a move operation. The type is 'nothing' afterwards.
+    */
    void destroy_result() {
       const stored_type saved_type = type_;
       type_ = stored_type::nothing;
@@ -101,11 +149,17 @@ class op_result_base {
          break;
       }
    }
+   /*! \brief Just like error() except that it fetches the error destructively
+    *  with a move operation. The type is 'nothing' afterwards.
+    */
    ::std::error_code destroy_error() {
       throw_fetching_bad_result_type(stored_type::error);
       type_ = stored_type::nothing;
       return ::std::move(error_);
    }
+   /*! \brief Just like exception() except that it fetches the exception
+    *  destructively with a move operation. The type is 'nothing' afterwards.
+    */
    ::std::exception_ptr destroy_exception() {
       throw_fetching_bad_result_type(stored_type::exception);
       type_ = stored_type::nothing;
@@ -118,6 +172,9 @@ class op_result_base {
       this->copy_to(other);
       value_copier(other);
    }
+   /*! \brief Copy this result to another object that supports the 'set_result',
+    * 'set_bad_result' interface that this class supports.
+    */
    template <class Other, typename Copier>
    void copy_to(Other &other, const Copier &value_copier) const
    {
@@ -133,6 +190,9 @@ class op_result_base {
       this->move_to(other);
       value_mover(other);
    }
+   /*! \brief Destructively move this result to another object that supports the
+    * 'set_result', 'set_bad_result' interface that this class supports.
+    */
    template <class Other, typename Mover>
    void move_to(Other &other, const Mover &value_mover)
    {
@@ -145,6 +205,7 @@ class op_result_base {
    }
 
  protected:
+   //! If the result stored isn't of the given type, throw an error.
    void throw_fetching_bad_result_type(const stored_type check) const
    {
       if (type_ == stored_type::nothing) {
@@ -157,12 +218,19 @@ class op_result_base {
                                "isn't an exception."));
       }
    }
+   //! If the result already holds a value other than 'nothing' throw an error.
    void throw_on_set() const {
       if (type_ != stored_type::nothing) {
          throw invalid_result("Attempt to set a result that's already been "
                               "set.");
       }
    }
+   /*! \brief Set a 'success' result.
+    *
+    * This is a protected method because 'success' is typically associated with
+    * some kind of additional value. Derived classes need to handle this value
+    * but still need a way to set the 'success' result.
+    */
    void set_result() {
       throw_on_set();
       type_ = stored_type::value;
@@ -288,10 +356,29 @@ class op_result : public op_result_base {
       op_result_base::set_result();
    }
 
+   /*! \brief Fetch the result
+    *
+    * Throws invalid_result if result hasn't been set. If the result is an
+    * exception, it rethrows that exception. If the result is an
+    * ::std::error_code, it throws the error_code in a system_error exception.
+    *
+    * Otherwise, if the result is an ordinary old result, it just returns it
+    * non-destructively (i.e. it makes a copy of the stored value).
+    */
    T result() const {
       op_result_base::result();
       return restore(val_);
    }
+   /*! \brief Fetch the result
+    *
+    * Throws invalid_result if result hasn't been set. If the result is an
+    * exception, it rethrows that exception. If the result is an
+    * ::std::error_code, it throws the error_code in a system_error exception.
+    *
+    * Otherwise, if the result is an ordinary old result, it just moves-returns
+    * it destructively. After this, the object is considered to have no value
+    * again.
+    */
    T destroy_result() {
       op_result_base::destroy_result();
       return restore(::std::move(val_));
@@ -403,7 +490,8 @@ class operation : public operation_base
    {
    }
 
-   /*! \brief Set this as having been completed without error.
+   /*! \brief Set this non-void operation as having been completed without error
+    * with the given result.
     *
     * Throws an exception if this can't be accomplished.
     */
