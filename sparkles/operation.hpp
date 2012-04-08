@@ -368,6 +368,22 @@ void value_mover(empty_type &&t, Other &other)
 template <typename T>
 class op_result : public op_result_base {
  public:
+   op_result() = default;
+   op_result(const op_result &other)
+        : op_result_base(other)
+   {
+      if (get_type() == stored_type::value) {
+         val_ = other.val_;
+      }
+   }
+   op_result(op_result &&other)
+        : op_result_base(::std::move(other))
+   {
+      if (get_type() == stored_type::value) {
+         val_ = ::std::move(other.val_);
+      }
+   }
+
    /*! \brief Set a non-void, non-error result.
     *
     * Throws an exception if this object already contains a value.
@@ -508,6 +524,29 @@ class operation : public operation_base
     */
    ::std::exception_ptr exception() const {
       return result_.exception();
+   }
+
+   /*! \brief Fetch a copy of the op_result<ResultType>. Guaranteed to hold
+    *  nothing if the operation is not finished.
+    *
+    * Sometimes it's very convenient to manipulate a result object
+    * directly. Especially if you're writing your own code that's intended to
+    * derive from operation<T>.
+    */
+   priv::op_result<ResultType> raw_result() const {
+      return result_;
+   }
+
+   /*! \brief Fetch an op_result<ResultType> holding the result value and
+    *  destroy the internally held value. Guaranteed to hold nothing if the
+    *  operation is not finished.
+    *
+    * This is intended for when you want to move a result out of an operation
+    * instead of copying it. After this is done, the result will be invalid,
+    * though the operation will still be finished. So use this with care.
+    */
+   priv::op_result<ResultType> destroy_raw_result() const {
+      return ::std::move(result_);
    }
 
  protected:
