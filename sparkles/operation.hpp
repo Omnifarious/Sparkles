@@ -40,6 +40,9 @@ class op_result_base {
    //! Defaults to holding nothing.
    op_result_base() : type_(stored_type::nothing) { }
 
+   //! What type of value is stored here?
+   stored_type get_type() const { return type_; }
+
    //! Does this contains a value, i.e. is the stored type not 'nothing'?
    bool is_valid() const     { return type_ != stored_type::nothing; }
 
