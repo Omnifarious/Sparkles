@@ -27,7 +27,7 @@ template <unsigned int foo> struct fake {
 
 namespace sparkles {
 
-/*! \brief Yes, our own linked list node. Yes, I know <list> exists.
+/*! \brief Yes, our own linked list node. Yes, I know ::std::list exists.
  *
  * I'm implementing a new linked list because I want careful control over
  * exactly what is locked when and for how long. I want to carefully minimize
