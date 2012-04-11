@@ -325,42 +325,53 @@ class op_result_base {
    }
 };
 
-struct empty_type {};
+//! The empty type standing in for 'void' when void can't be used.
+struct fake_void_type {};
 
+/*! \brief Given a typename T, return the actual stored type for that type.
+ *
+ * This is basically the identity for any type other than void, and
+ * fake_void_type for void.
+ */
 template<typename T>
 struct Store {
    typedef typename ::std::conditional< ::std::is_void<T>::value,
-                                        empty_type, T>::type type;
+                                        fake_void_type, T>::type type;
 };
 
+//! Used in conjuction with Store<T> for returning a type that may be void.
 template<typename T>
 inline T &&restore(T &&t)
 {
    return ::std::forward<T>(t);
 }
-
-inline void restore(empty_type)
+//! Used in conjuction with Store<T> for returning a type that may be void.
+inline void restore(fake_void_type)
 {
 }
 
+//! Copy a non-void value by calling some other type's set_result method.
 template <class T, class Other>
 void value_copier(const T &t, Other &other)
 {
    other.set_result(t);
 }
+//! Copy a void value by calling some other type's set_result method.
 template <class Other>
-void value_copier(const empty_type &t, Other &other)
+void value_copier(const fake_void_type &t, Other &other)
 {
    other.set_result();
 }
 
+//! Move a non-void value by calling some other type's set_result method.
 template <class T, class Other>
 void value_mover(T &&t, Other &other)
 {
    other.set_result(::std::move(t));
 }
+//! 'Move' a void value by calling some other type's set_result method.
 template <class Other>
-void value_mover(empty_type &&t, Other &other)
+void value_mover(fake_void_type &&t, Other &other)
 {
    other.set_result();
 }
