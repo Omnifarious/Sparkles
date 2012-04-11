@@ -148,12 +148,6 @@ class op_result_base {
       return ::std::move(exception_);
    }
 
-   template <typename Copier>
-   void copy_to(op_result_base &other, const Copier &value_copier) const
-   {
-      this->copy_to(other);
-      value_copier(other);
-   }
    /*! \brief Copy this result to another object that supports the 'set_result',
     * 'set_bad_result' interface that this class supports.
     */
@@ -166,12 +160,7 @@ class op_result_base {
          value_copier(other);
       }
    }
-   template <typename Mover>
-   void move_to(op_result_base &other, const Mover &value_mover)
-   {
-      this->move_to(other);
-      value_mover(other);
-   }
+
    /*! \brief Destructively move this result to another object that supports the
     * 'set_result', 'set_bad_result' interface that this class supports.
     */
@@ -276,12 +265,6 @@ class op_result_base {
    ::std::error_code error_;
    ::std::exception_ptr exception_;
 
-   void copy_to(op_result_base &other) const
-   {
-      other.throw_on_set();
-      other = *this;
-   }
-
    template <class Other>
    void copy_to(Other &other) const
    {
@@ -300,11 +283,7 @@ class op_result_base {
          break;
       }
    }
-   void move_to(op_result_base &other)
-   {
-      other.throw_on_set();
-      other = ::std::move(*this);
-   }
+
    template <class Other>
    void move_to(Other &other)
    {
@@ -446,13 +425,12 @@ class op_result : public op_result_base {
       return restore(::std::move(val_));
    }
 
-   void copy_to(op_result<T> &other) const {
-      op_result_base &baseother = other;
-      op_result_base::copy_to(baseother,
-                              [this, &other](op_result_base &) -> void {
-                                 other.val_ = this->val_;
-                              });
-   }
+   /*! \brief Copy the stored value to some other type supporting the
+    *  set_result, set_bad_result interface.
+    *
+    * This will use the value_copier free function and relies on that function's
+    * overload for fake_void_type to handle void 'values'.
+    */
    template <class Other>
    void copy_to(Other &other) const {
       op_result_base::copy_to(other, [this](Other &other) -> void {
@@ -460,13 +438,12 @@ class op_result : public op_result_base {
          });
    }
 
-   void move_to(op_result<T> &other) {
-      op_result_base &baseother = other;
-      op_result_base::move_to(baseother,
-                              [this, &other](op_result_base &) -> void {
-                                 other.val_ = ::std::move(this->val_);
-                              });
-   }
+   /*! \brief Move the stored value (thereby destroying it) to some other type
+    *  supporting the set_result, set_bad_result interface.
+    *
+    * This will use the value_mover free function and relies on that function's
+    * overload for fake_void_type to handle void 'values'.
+    */
    template <class Other>
    void move_to(Other &other) {
       op_result_base::move_to(other, [this](Other &other) -> void {
@@ -578,26 +555,38 @@ class operation : public operation_base
    /*! \brief Set this non-void operation as having been completed without error
     * with the given result.
     *
-    * Throws an exception if this can't be accomplished.
+    * If the result has been destructively read, the results of this are
+    * unspecified. It may throw an exception, or it may silently fail to do
+    * anything.
+    *
+    * Otherwise, throws an exception if this can't be accomplished.
     */
    template <typename U = ResultType>
    // The following fails template expansion if ResultType is void.
    typename ::std::enable_if<!::std::is_void<U>::value, void>::type
    set_result(U result) {
-      result_.set_result(::std::move(result));
-      set_finished();
+      if (result_.is_valid() || !finished()) {
+         result_.set_result(::std::move(result));
+         set_finished();
+      }
    }
 
    /*! \brief Set this void operation as having been completed without error.
     *
-    * Throws an exception if this can't be accomplished.
+    * If the result has been destructively read, the results of this are
+    * unspecified. It may throw an exception, or it may silently fail to do
+    * anything.
+    *
+    * Otherwise, throws an exception if this can't be accomplished.
     */
    template <typename U = ResultType>
    // The following fails template expansion if ResultType is not void.
    typename ::std::enable_if< ::std::is_void<U>::value, void>::type
    set_result() {
-      result_.set_result();
-      set_finished();
+      if (result_.is_valid() || !finished()) {
+         result_.set_result();
+         set_finished();
+      }
    }
 
    /*! \brief Set this as having been completed with an exception.
@@ -605,54 +594,57 @@ class operation : public operation_base
     * Throws an exception if this can't be accomplished.
     */
    void set_bad_result(::std::exception_ptr exception) {
-      result_.set_bad_result(::std::move(exception));
-      set_finished();
+      if (result_.is_valid() || !finished()) {
+         result_.set_bad_result(::std::move(exception));
+         set_finished();
+      }
    }
 
    /*! \brief Set this as having been completed with an ::std::error_code.
     *
-    * Throws an exception if this can't be accomplished.
+    * If the result has been destructively read, the results of this are
+    * unspecified. It may throw an exception, or it may silently fail to do
+    * anything.
+    *
+    * Otherwise, throws an exception if this can't be accomplished.
     */
    void set_bad_result(::std::error_code error) {
-      result_.set_bad_result(::std::move(error));
-      set_finished();
+      if (result_.is_valid() || !finished()) {
+         result_.set_bad_result(::std::move(error));
+         set_finished();
+      }
    }
 
-   void copy_from(const priv::op_result<ResultType> &other) {
-      other.copy_to(result_);
-      if (result_.is_valid()) {
+   /*! \brief Set a raw result value. Used with raw_result for copying results
+    *  from another operation.
+    *
+    * If the result has been destructively read, the results of this are
+    * unspecified. It may throw an exception, or it may silently fail to do
+    * anything.
+    *
+    * Otherwise, throws an exception if this can't be accomplished.
+    */
+   void set_raw_result(const priv::op_result<ResultType> &result) {
+      if (result_.is_valid() || !finished()) {
+         result_ = result;
          set_finished();
       }
    }
-   void copy_to(priv::op_result<ResultType> &other) const {
-      result_.copy_to(other);
-   }
-   static void copy_from_to(const operation<ResultType> &from,
-                            operation<ResultType> &to)
-   {
-      to.copy_from(from.result_);
-   }
-   template <class T>
-   void copy_to(T &other) const {
-      result_.copy_to(other);
-   }
-   void move_from(priv::op_result<ResultType> &&other) {
-      other.move_to(result_);
-      if (result_.is_valid()) {
+
+   /*! \brief Set a raw result value. Used with destroy_raw_result for moving
+    *  results from another operation.
+    *
+    * If the result has been destructively read, the results of this are
+    * unspecified. It may throw an exception, or it may silently fail to do
+    * anything.
+    *
+    * Otherwise, throws an exception if this can't be accomplished.
+    */
+   void set_raw_result(priv::op_result<ResultType> &&result) {
+      if (result_.is_valid() || !finished()) {
+         result_ = ::std::move(result);
          set_finished();
       }
-   }
-   void move_to(priv::op_result<ResultType> &other) {
-      result_.move_to(other);
-   }
-   static void move_from_to(operation<ResultType> &from,
-                            operation<ResultType> &to)
-   {
-      to.move_from(from.result_);
-   }
-   template <class T>
-   void move_to(T &other) const {
-      result_.move_to(other);
    }
 
  private:
