@@ -127,6 +127,7 @@ class remote_operation<ResultType>::promise {
 
  private:
    class delivery : public priv::op_result<ResultType> {
+      typedef priv::op_result<ResultType> parent_t;
     public:
       explicit delivery(weak_op_ptr_t dest) : dest_(dest) { }
       delivery(weak_op_ptr_t dest, const parent_t &result)
@@ -244,6 +245,25 @@ class remote_operation<ResultType>::promise {
       fulfilled_ = true;
    }
 
+   void set_raw_result(const priv::op_result<ResultType> &result) {
+      if (still_needed()) {
+         wq_.enqueue(outbound(dest_, result));
+      } else if (fulfilled()) {
+         throw invalid_result("Attempt to set a result that's already been "
+                              "set.");
+      }
+      fulfilled_ = true;
+   }
+
+   void set_raw_result(priv::op_result<ResultType> &&result) {
+      if (still_needed()) {
+         wq_.enqueue(outbound(dest_, ::std::move(result)));
+      } else if (fulfilled()) {
+         throw invalid_result("Attempt to set a result that's already been "
+                              "set.");
+      }
+      fulfilled_ = true;
+   }
  private:
    weak_op_ptr_t dest_;
    ::sparkles::work_queue &wq_;
@@ -251,7 +271,7 @@ class remote_operation<ResultType>::promise {
 
    static void move_into(priv::op_result<ResultType> &&result,
                          remote_operation<ResultType>::ptr_t lockeddest) {
-      lockeddest->move_from(::std::move(result));
+      lockeddest->set_raw_result(::std::move(result));
    }
 };
 
@@ -326,8 +346,9 @@ class promised_operation : public operation<ResultType>
          op_ptr_t my_op;
          my_op.swap(local_op_);
          remove_dependency(op);
-         copy_from_to(*my_op, *this);
-         copy_to(*promise_);
+         set_raw_result(::std::move(my_op->raw_result()));
+         const auto constthis = this;
+         constthis->raw_result().copy_to(*promise_);
       }
    }
 };
