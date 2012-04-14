@@ -533,7 +533,7 @@ class operation : public operation_base
     * instead of copying it. After this is done, the result will be invalid,
     * though the operation will still be finished. So use this with care.
     */
-   priv::op_result<ResultType> destroy_raw_result() const {
+   priv::op_result<ResultType> destroy_raw_result() {
       return ::std::move(result_);
    }
 
