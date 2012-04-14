@@ -1,5 +1,6 @@
 #pragma once
 
+#include <sparkles/op_result.hpp>
 #include <sparkles/operation.hpp>
 #include <sparkles/work_queue.hpp>
 #include <sparkles/errors.hpp>
