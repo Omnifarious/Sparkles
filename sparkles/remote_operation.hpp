@@ -128,12 +128,23 @@ class remote_operation<ResultType>::promise {
  private:
    class delivery : public priv::op_result<ResultType> {
     public:
-      delivery(weak_op_ptr_t dest) : dest_(dest) { }
+      explicit delivery(weak_op_ptr_t dest) : dest_(dest) { }
+      delivery(weak_op_ptr_t dest, const parent_t &result)
+           : parent_t(result), dest_(::std::move(dest))
+      {
+      }
+      delivery(weak_op_ptr_t dest, parent_t &&result)
+           : parent_t(::std::move(result)), dest_(::std::move(dest))
+      {
+      }
 
+      /*! \brief This may only be called once. Delivers the result.
+       */
       void operator ()() {
          auto lockeddest = dest_.lock();
          if (lockeddest) {
-            promise::move_into(::std::move(*this), lockeddest);
+            dest_.reset();
+            promise::move_into(::std::move(*this), ::std::move(lockeddest));
          }
       }
 
@@ -201,15 +212,11 @@ class remote_operation<ResultType>::promise {
       fulfilled_ = true;
    }
 
-   //! Fulfill this promise with an actual result.
-   template<
-      typename U = ResultType
-      , typename ::std::enable_if<
-           !::std::is_void<U>::value
-           , int
-           >::type = 0
-      >
-   void set_result(U res) {
+   //! Fulfill this promise with a non-void result.
+   template<typename U = ResultType>
+   // This causes an SFINAE failure in expansion if ResultType is void.
+   typename ::std::enable_if<!::std::is_void<U>::value, void>::type
+   set_result(U res) {
       if (still_needed()) {
          delivery outbound(dest_);
          outbound.set_result(::std::move(res));
@@ -222,14 +229,10 @@ class remote_operation<ResultType>::promise {
    }
 
    //! Fulfill this promise with a void result.
-   template<
-      typename U = ResultType
-      , typename ::std::enable_if<
-           ::std::is_void<U>::value
-           , int
-           >::type = 0
-      >
-   void set_result() {
+   template<typename U = ResultType>
+   // This causes an SFINAE failure in expansion if ResultType is not void.
+   typename ::std::enable_if< ::std::is_void<U>::value, void>::type
+   set_result() {
       if (still_needed()) {
          delivery outbound(dest_);
          outbound.set_result();
