@@ -75,7 +75,7 @@ class operation : public operation_base
     * directly. Especially if you're writing your own code that's intended to
     * derive from operation<T>.
     */
-   priv::op_result<ResultType> raw_result() const {
+   op_result<ResultType> raw_result() const {
       return result_;
    }
 
@@ -87,7 +87,7 @@ class operation : public operation_base
     * instead of copying it. After this is done, the result will be invalid,
     * though the operation will still be finished. So use this with care.
     */
-   priv::op_result<ResultType> destroy_raw_result() {
+   op_result<ResultType> destroy_raw_result() {
       return ::std::move(result_);
    }
 
@@ -178,7 +178,7 @@ class operation : public operation_base
     *
     * Otherwise, throws an exception if this can't be accomplished.
     */
-   void set_raw_result(const priv::op_result<ResultType> &result) {
+   void set_raw_result(const op_result<ResultType> &result) {
       if (result_.is_valid() || !finished()) {
          result_ = result;
          set_finished();
@@ -194,7 +194,7 @@ class operation : public operation_base
     *
     * Otherwise, throws an exception if this can't be accomplished.
     */
-   void set_raw_result(priv::op_result<ResultType> &&result) {
+   void set_raw_result(op_result<ResultType> &&result) {
       if (result_.is_valid() || !finished()) {
          result_ = ::std::move(result);
          set_finished();
@@ -202,7 +202,7 @@ class operation : public operation_base
    }
 
  private:
-   priv::op_result<ResultType> result_;
+   op_result<ResultType> result_;
 
    void set_finished() { operation_base::set_finished(); }
 

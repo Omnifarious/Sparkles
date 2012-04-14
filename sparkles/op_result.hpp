@@ -35,9 +35,6 @@ class op_result_base {
       nothing, value, exception, error
    };
 
-   //! Defaults to holding nothing.
-   op_result_base() : type_(stored_type::nothing) { }
-
    //! What type of value is stored here?
    stored_type get_type() const { return type_; }
 
@@ -174,6 +171,8 @@ class op_result_base {
    }
 
  protected:
+   //! Defaults to holding nothing.
+   op_result_base() : type_(stored_type::nothing) { }
    /*! \brief Copying is the unsurprising default. Protected to avoid slicing.
     */
    op_result_base(const op_result_base &) = default;
@@ -187,6 +186,8 @@ class op_result_base {
    {
       other.type_ = stored_type::nothing;
    }
+   ~op_result_base() = default;
+
    /*! \brief Moving results in the moved from result being 'nothing'. Protected
     *  to avoid slicing.
     */
@@ -353,19 +354,46 @@ void value_mover(fake_void_type &&t, Other &other)
    other.set_result();
 }
 
+} // namespace priv
+
+/*! \brief Stores the result of an operation that may be one of three things.  A
+ *  value of an arbitrary type, an exception, or an ::std::error_code.
+ *
+ * Value of arbitrary type includes the void type, in which case the result
+ * simply means "it didn't have an exception or error.", but the operation
+ * completed.
+ *
+ * An op_result is initially created in an 'empty' state, and any attempt to get
+ * an actual value from an op_result in this state will result in an exception
+ * being thrown.
+ *
+ * Additionally, once an op_result has acquired a value, this value may not be
+ * changed. Subsequent attempts to set the value of an op_result result in an
+ * exception being thrown.
+ *
+ * Lastly, destructive operations such as moving will cause the op_result to
+ * reset back to the 'holds nothing' state.
+ */
 template <typename T>
-class op_result : public op_result_base {
+class op_result : public priv::op_result_base {
  public:
+   //! It's the default empty constructor, initializes to holding 'nothing'.
    op_result() = default;
+   //! Construct this op_result as a copy of another.
    op_result(const op_result &other)
-        : op_result_base(other)
+        : priv::op_result_base(other)
    {
       if (get_type() == stored_type::value) {
          val_ = other.val_;
       }
    }
+   /*! \brief Construct this op_result as a destructive copy of another.
+    *
+    * This means that 'other' will contain nothing after this constructor
+    * finishes.
+    */
    op_result(op_result &&other)
-        : op_result_base(::std::move(other))
+        : priv::op_result_base(::std::move(other))
    {
       if (get_type() == stored_type::value) {
          val_ = ::std::move(other.val_);
@@ -380,7 +408,7 @@ class op_result : public op_result_base {
    // This causes an SFINAE failure in expansion if T is void.
    typename ::std::enable_if<!::std::is_void<U>::value, void>::type
    set_result(U res) {
-      op_result_base::set_result();
+      priv::op_result_base::set_result();
       val_ = ::std::move(res);
    }
 
@@ -392,7 +420,7 @@ class op_result : public op_result_base {
    // This causes an SFINAE failure in expansion if T is not void.
    typename ::std::enable_if< ::std::is_void<U>::value, void>::type
    set_result() {
-      op_result_base::set_result();
+      priv::op_result_base::set_result();
    }
 
    /*! \brief Fetch the result
@@ -405,8 +433,8 @@ class op_result : public op_result_base {
     * non-destructively (i.e. it makes a copy of the stored value).
     */
    T result() const {
-      op_result_base::result();
-      return restore(val_);
+      priv::op_result_base::result();
+      return priv::restore(val_);
    }
    /*! \brief Fetch the result
     *
@@ -419,40 +447,42 @@ class op_result : public op_result_base {
     * again.
     */
    T destroy_result() {
-      op_result_base::destroy_result();
-      return restore(::std::move(val_));
+      priv::op_result_base::destroy_result();
+      return priv::restore(::std::move(val_));
    }
 
    /*! \brief Copy the stored value to some other type supporting the
     *  set_result, set_bad_result interface.
     *
-    * This will use the value_copier free function and relies on that function's
-    * overload for fake_void_type to handle void 'values'.
+    * This will use the priv::value_copier free function and relies on that
+    * function's overload for priv::fake_void_type to handle void 'values'. This
+    * means it will call 'set_result()' on the destination instead of
+    * 'set_result(val)'.
     */
    template <class Other>
    void copy_to(Other &other) const {
-      op_result_base::copy_to(other, [this](Other &other) -> void {
-            value_copier(this->val_, other);
+      priv::op_result_base::copy_to(other, [this](Other &other) -> void {
+            priv::value_copier(this->val_, other);
          });
    }
 
    /*! \brief Move the stored value (thereby destroying it) to some other type
     *  supporting the set_result, set_bad_result interface.
     *
-    * This will use the value_mover free function and relies on that function's
-    * overload for fake_void_type to handle void 'values'.
+    * This will use the priv::value_mover free function and relies on that
+    * function's overload for priv::fake_void_type to handle void 'values'. This
+    * means it will call 'set_result()' on the destination instead of
+    * 'set_result(::std::move(val))'.
     */
    template <class Other>
    void move_to(Other &other) {
-      op_result_base::move_to(other, [this](Other &other) -> void {
-            value_mover(::std::move(this->val_), other);
+      priv::op_result_base::move_to(other, [this](Other &other) -> void {
+            priv::value_mover(::std::move(this->val_), other);
          });
    }
 
  private:
-   typename Store<T>::type val_;
+   typename priv::Store<T>::type val_;
 };
-
-} // namespace priv
 
 } // namespace sparkles

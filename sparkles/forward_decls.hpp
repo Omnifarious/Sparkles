@@ -21,6 +21,9 @@ class semaphore;
 
 class work_queue;
 
+template <typename T>
+class op_result;
+
 template <class ResultType>
 class operation;
 

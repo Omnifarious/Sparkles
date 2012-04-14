@@ -127,8 +127,8 @@ class remote_operation<ResultType>::promise {
    typedef ::std::shared_ptr<promise> ptr_t;
 
  private:
-   class delivery : public priv::op_result<ResultType> {
-      typedef priv::op_result<ResultType> parent_t;
+   class delivery : public op_result<ResultType> {
+      typedef op_result<ResultType> parent_t;
     public:
       explicit delivery(weak_op_ptr_t dest) : dest_(dest) { }
       delivery(weak_op_ptr_t dest, const parent_t &result)
@@ -246,7 +246,7 @@ class remote_operation<ResultType>::promise {
       fulfilled_ = true;
    }
 
-   void set_raw_result(const priv::op_result<ResultType> &result) {
+   void set_raw_result(const op_result<ResultType> &result) {
       if (still_needed()) {
          wq_.enqueue(outbound(dest_, result));
       } else if (fulfilled()) {
@@ -256,7 +256,7 @@ class remote_operation<ResultType>::promise {
       fulfilled_ = true;
    }
 
-   void set_raw_result(priv::op_result<ResultType> &&result) {
+   void set_raw_result(op_result<ResultType> &&result) {
       if (still_needed()) {
          wq_.enqueue(outbound(dest_, ::std::move(result)));
       } else if (fulfilled()) {
@@ -270,7 +270,7 @@ class remote_operation<ResultType>::promise {
    ::sparkles::work_queue &wq_;
    bool fulfilled_;
 
-   static void move_into(priv::op_result<ResultType> &&result,
+   static void move_into(op_result<ResultType> &&result,
                          remote_operation<ResultType>::ptr_t lockeddest) {
       lockeddest->set_raw_result(::std::move(result));
    }
