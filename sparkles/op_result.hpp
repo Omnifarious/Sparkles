@@ -32,14 +32,17 @@ class op_result_base {
  public:
    //! The sort of value currently stored in this variant.
    enum class stored_type : ::std::uint8_t {
-      nothing, value, exception, error
+      nothing, destroyed, value, exception, error
    };
 
    //! What type of value is stored here?
    stored_type get_type() const { return type_; }
 
-   //! Does this contains a value, i.e. is the stored type not 'nothing'?
-   bool is_valid() const     { return type_ != stored_type::nothing; }
+   //! Does this contains a value?
+   bool is_valid() const {
+      return (type_ != stored_type::nothing)
+         && (type_ != stored_type::destroyed);
+   }
 
    //! Does this hold an ::std::error_code value?
    bool is_error() const     { return type_ == stored_type::error; }
@@ -82,6 +85,7 @@ class op_result_base {
    void result() const {
       switch (type_) {
        case stored_type::nothing:
+       case stored_type::destroyed:
          throw invalid_result("attempt to fetch a non-existent result.");
          break;
        case stored_type::error:
@@ -110,9 +114,10 @@ class op_result_base {
     */
    void destroy_result() {
       const stored_type saved_type = type_;
-      type_ = stored_type::nothing;
+      type_ = stored_type::destroyed;
       switch (saved_type) {
        case stored_type::nothing:
+       case stored_type::destroyed:
          throw invalid_result("attempt to fetch a non-existent result.");
          break;
        case stored_type::error:
@@ -131,7 +136,7 @@ class op_result_base {
     */
    ::std::error_code destroy_error() {
       throw_fetching_bad_result_type(stored_type::error);
-      type_ = stored_type::nothing;
+      type_ = stored_type::destroyed;
       return ::std::move(error_);
    }
    /*! \brief Just like exception() except that it fetches the exception
@@ -139,7 +144,7 @@ class op_result_base {
     */
    ::std::exception_ptr destroy_exception() {
       throw_fetching_bad_result_type(stored_type::exception);
-      type_ = stored_type::nothing;
+      type_ = stored_type::destroyed;
       return ::std::move(exception_);
    }
 
@@ -167,7 +172,7 @@ class op_result_base {
       } else {
          value_mover(other);
       }
-      type_ = stored_type::nothing;
+      type_ = stored_type::destroyed;
    }
 
  protected:
@@ -184,7 +189,10 @@ class op_result_base {
           error_(::std::move(other.error_)),
           exception_(::std::move(other.exception_))
    {
-      other.type_ = stored_type::nothing;
+      if (other.type_ == stored_type::destroyed) {
+         throw invalid_result("Attempting to use a destroyed result.");
+      }
+      other.type_ = stored_type::destroyed;
    }
    ~op_result_base() = default;
 
@@ -193,8 +201,7 @@ class op_result_base {
     */
    const op_result_base &operator =(op_result_base &&other) {
       throw_on_set();
-      type_ = other.type_;
-      switch (type_) {
+      switch (other.type_) {
        case stored_type::error:
          error_ = ::std::move(other.error_);
          break;
@@ -204,8 +211,11 @@ class op_result_base {
        case stored_type::nothing:
        case stored_type::value:
          break;
+       case stored_type::destroyed:
+         throw invalid_result("Attempting to use a destroyed result.");
       }
-      other.type_ = stored_type::nothing;
+      type_ = other.type_;
+      other.type_ = stored_type::destroyed;
       return *this;
    }
    /*! \brief Copying is basically the default except throwing if already
@@ -213,8 +223,7 @@ class op_result_base {
     */
    const op_result_base &operator =(const op_result_base &other) {
       throw_on_set();
-      type_ = other.type_;
-      switch (type_) {
+      switch (other.type_) {
        case stored_type::error:
          error_ = ::std::move(other.error_);
          break;
@@ -224,14 +233,19 @@ class op_result_base {
        case stored_type::nothing:
        case stored_type::value:
          break;
+       case stored_type::destroyed:
+         throw invalid_result("Attempting to use a destroyed result.");
       }
+      type_ = other.type_;
       return *this;
    }
 
    //! If the result stored isn't of the given type, throw an error.
    void throw_fetching_bad_result_type(const stored_type check) const
    {
-      if (type_ == stored_type::nothing) {
+      if ((type_ == stored_type::nothing)
+          || (type_ == stored_type::destroyed))
+      {
          throw invalid_result("attempt to fetch a non-existent result.");
       } else if (type_ != check) {
          throw invalid_result(((check == stored_type::error) ?
@@ -269,6 +283,7 @@ class op_result_base {
    {
       switch (type_) {
        case stored_type::nothing:
+       case stored_type::destroyed:
          throw invalid_result("Trying to copy a result that isn't there.");
          break;
        case stored_type::error:
@@ -288,6 +303,7 @@ class op_result_base {
    {
       switch (type_) {
        case stored_type::nothing:
+       case stored_type::destroyed:
          throw invalid_result("Trying to move a result that isn't there.");
          break;
        case stored_type::error:
