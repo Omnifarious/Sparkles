@@ -1,8 +1,10 @@
 #pragma once
 #include <sparkles/errors.hpp>
+#include <sparkles/stdlib_patches.hpp>
 #include <exception>
 #include <system_error>
 #include <utility>
+#include <type_traits>
 #include <cstdint>
 
 namespace sparkles {
@@ -178,8 +180,12 @@ class op_result_base {
    op_result_base(const op_result_base &) = default;
    /*! \brief Move constructing results in the moved from result being
     *  'nothing'.  Protected to avoid slicing.
+    *
+    * This is listed as 'noexcept' because the condition which should cause an
+    * exception to be thrown is a serious programming error. Basically using it
+    * after the value has been moved out of it.
     */
-   op_result_base(op_result_base &&other)
+   op_result_base(op_result_base &&other) noexcept(true)
         : type_(other.type_),
           error_(::std::move(other.error_)),
           exception_(::std::move(other.exception_))
@@ -393,6 +399,9 @@ class op_result : public priv::op_result_base {
     * finishes.
     */
    op_result(op_result &&other)
+      noexcept(::std::is_void<T>::value ||
+               (mystd::is_nothrow_default_constructible<T>::value &&
+                mystd::is_nothrow_move_assignable<T>::value))
         : priv::op_result_base(::std::move(other))
    {
       if (get_type() == stored_type::value) {
