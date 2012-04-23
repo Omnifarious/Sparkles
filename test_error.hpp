@@ -16,7 +16,7 @@ class test_error_category_impl : public ::std::error_category
 {
  public:
    virtual const char *name() const noexcept(true) {
-      return __FILE__ " test error";
+      return "Sparkles test error.";
    }
    virtual ::std::string message(int ev) const {
       if (static_cast<test_error>(ev) == test_error::no_error) {
