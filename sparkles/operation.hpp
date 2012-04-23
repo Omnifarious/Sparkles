@@ -6,6 +6,7 @@
 #include <system_error>
 #include <utility>
 #include <memory>
+#include <type_traits>
 
 namespace sparkles {
 
