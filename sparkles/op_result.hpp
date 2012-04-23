@@ -411,7 +411,7 @@ class op_result : public priv::op_result_base {
    //! Copy stored value (if any) in addition to base class copy assignment.
    const op_result &operator =(const op_result &other) {
       op_result_base::operator =(other);
-      if (get_type() = stored_type::value) {
+      if (get_type() == stored_type::value) {
          val_ = other.val_;
       }
       return *this;
