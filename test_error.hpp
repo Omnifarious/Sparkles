@@ -15,7 +15,9 @@ enum class test_error : int
 class test_error_category_impl : public ::std::error_category
 {
  public:
-   virtual const char *name() const { return __FILE__ " test error"; }
+   virtual const char *name() const noexcept(true) {
+      return __FILE__ " test error";
+   }
    virtual ::std::string message(int ev) const {
       if (static_cast<test_error>(ev) == test_error::no_error) {
          return "no error";
@@ -23,7 +25,7 @@ class test_error_category_impl : public ::std::error_category
          return "an error of some sort";
       }
    }
-   ::std::error_condition default_error_condition(int ev) const
+   ::std::error_condition default_error_condition(int ev) const noexcept(true)
    {
       if (static_cast<test_error>(ev) == test_error::no_error) {
          return make_error_condition(static_cast< ::std::errc>(0));

@@ -99,7 +99,7 @@ class nodep_op : public base_testop<ResultType> {
       ptr_t newthunk{
          ::std::make_shared<me_t>(privclass{}, name, finishedq, deleted)
             };
-      register_as_dependent(newthunk);
+      me_t::register_as_dependent(newthunk);
       return ::std::move(newthunk);
    }
 
@@ -147,7 +147,7 @@ class op_add : public base_testop<ResultType>
          ::std::make_shared<me_t>(privclass{}, name, finishedq, deleted,
                                   arg1, arg2)
             };
-      register_as_dependent(newthunk);
+      me_t::register_as_dependent(newthunk);
       return ::std::move(newthunk);
    }
 
@@ -161,18 +161,18 @@ class op_add : public base_testop<ResultType>
       if (dependency == arg1_) {
          if (arg1_->is_exception()) {
             found_error = true;
-            set_bad_result(arg1_->exception());
+            this->set_bad_result(arg1_->exception());
          } else if (arg1_->is_error()) {
             found_error = true;
-            set_bad_result(arg1_->error());
+            this->set_bad_result(arg1_->error());
          }
       } else if (dependency == arg2_) {
          if (arg2_->is_exception()) {
             found_error = true;
-            set_bad_result(arg2_->exception());
+            this->set_bad_result(arg2_->exception());
          } else if (arg2_->is_error()) {
             found_error = true;
-            set_bad_result(arg2_->error());
+            this->set_bad_result(arg2_->error());
          }
       } else {
          throw ::std::runtime_error("A dependency I don't have finished.");

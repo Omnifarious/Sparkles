@@ -61,7 +61,7 @@ class remote_operation : public operation<ResultType> {
       typedef remote_operation<ResultType> me_t;
       auto remop = ::std::make_shared<me_t>(private_cookie{});
       auto prom = ::std::make_shared<promise>(private_cookie{}, remop, answerq);
-      register_as_dependent(remop);
+      me_t::register_as_dependent(remop);
       return ::std::pair<ptr_t, ::std::shared_ptr<promise> >(remop, prom);
    }
 
@@ -332,7 +332,7 @@ class promised_operation : public operation<ResultType>
       auto newme = ::std::make_shared<me_t>(priv_cookie(),
                                             ::std::move(promise),
                                             ::std::move(local_op));
-      register_as_dependent(newme);
+      me_t::register_as_dependent(newme);
       return newme;
    }
 
@@ -346,8 +346,8 @@ class promised_operation : public operation<ResultType>
       } else {
          op_ptr_t my_op;
          my_op.swap(local_op_);
-         remove_dependency(op);
-         set_raw_result(::std::move(my_op->raw_result()));
+         this->remove_dependency(op);
+         this->set_raw_result(::std::move(my_op->raw_result()));
          const auto constthis = this;
          constthis->raw_result().copy_to(*promise_);
       }

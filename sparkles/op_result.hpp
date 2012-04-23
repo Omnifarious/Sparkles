@@ -1,6 +1,5 @@
 #pragma once
 #include <sparkles/errors.hpp>
-#include <sparkles/stdlib_patches.hpp>
 #include <exception>
 #include <system_error>
 #include <utility>
@@ -400,13 +399,31 @@ class op_result : public priv::op_result_base {
     */
    op_result(op_result &&other)
       noexcept(::std::is_void<T>::value ||
-               (mystd::is_nothrow_default_constructible<T>::value &&
-                mystd::is_nothrow_move_assignable<T>::value))
+               (::std::is_nothrow_default_constructible<T>::value &&
+                ::std::is_nothrow_move_assignable<T>::value))
         : priv::op_result_base(::std::move(other))
    {
       if (get_type() == stored_type::value) {
          val_ = ::std::move(other.val_);
       }
+   }
+
+   //! Copy stored value (if any) in addition to base class copy assignment.
+   const op_result &operator =(const op_result &other) {
+      op_result_base::operator =(other);
+      if (get_type() = stored_type::value) {
+         val_ = other.val_;
+      }
+      return *this;
+   }
+
+   //! Move stored value (if any) in addition to base class copy assignment.
+   const op_result &operator =(op_result &&other) {
+      op_result_base::operator =(::std::move(other));
+      if (get_type() == stored_type::value) {
+         val_ = ::std::move(other.val_);
+      }
+      return *this;
    }
 
    /*! \brief Set a non-void, non-error result.
