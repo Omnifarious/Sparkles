@@ -115,10 +115,15 @@ class operation : public operation_base
     * anything.
     *
     * Otherwise, throws an exception if this can't be accomplished.
+    *
+    * SFINAE causes this function to not exist for operation<void>.
+    *
+    * \return void
     */
    template <typename U = ResultType>
    // The following fails template expansion if ResultType is void.
-   typename ::std::enable_if<!::std::is_void<U>::value, void>::type
+   typename ::std::enable_if< ::std::is_same<U, ResultType>::value
+                              && !::std::is_void<U>::value, void>::type
    set_result(U result) {
       if (result_.is_valid() || !finished()) {
          result_.set_result(::std::move(result));
@@ -133,10 +138,15 @@ class operation : public operation_base
     * anything.
     *
     * Otherwise, throws an exception if this can't be accomplished.
+    *
+    * SFINAE causes this function to only exist for operation<void>.
+    *
+    * \return void
     */
    template <typename U = ResultType>
    // The following fails template expansion if ResultType is not void.
-   typename ::std::enable_if< ::std::is_void<U>::value, void>::type
+   typename ::std::enable_if< ::std::is_same<U, ResultType>::value
+                              && ::std::is_void<U>::value, void>::type
    set_result() {
       if (result_.is_valid() || !finished()) {
          result_.set_result();

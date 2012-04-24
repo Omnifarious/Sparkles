@@ -428,11 +428,15 @@ class op_result : public priv::op_result_base {
 
    /*! \brief Set a non-void, non-error result.
     *
-    * Throws an exception if this object already contains a value.
+    * Throws an exception if this object already contains a value. This function
+    * does not actually exist for op_result<void>.
+    *
+    * \return void
     */
    template<typename U = T>
    // This causes an SFINAE failure in expansion if T is void.
-   typename ::std::enable_if<!::std::is_void<U>::value, void>::type
+   typename ::std::enable_if< ::std::is_same<U, T>::value
+                              && !::std::is_void<T>::value, void>::type
    set_result(U res) {
       priv::op_result_base::set_result();
       val_ = ::std::move(res);
@@ -440,11 +444,15 @@ class op_result : public priv::op_result_base {
 
    /*! \brief Set a non-error, but void result.
     *
-    * Throws an exception if this object already contains a value.
+    * Throws an exception if this object already contains a value. This function
+    * only exists for op_result<void>.
+    *
+    * \return void
     */
    template<typename U = T>
    // This causes an SFINAE failure in expansion if T is not void.
-   typename ::std::enable_if< ::std::is_void<U>::value, void>::type
+   typename ::std::enable_if< ::std::is_same<U, T>::value
+                              && ::std::is_void<U>::value, void>::type
    set_result() {
       priv::op_result_base::set_result();
    }

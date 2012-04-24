@@ -214,10 +214,16 @@ class remote_operation<ResultType>::promise {
       fulfilled_ = true;
    }
 
-   //! Fulfill this promise with a non-void result.
+   /*! \brief Fulfill this promise with a non-void result.
+    *
+    * This function does not exist for promise<void>.
+    *
+    * \return void
+    */
    template<typename U = ResultType>
    // This causes an SFINAE failure in expansion if ResultType is void.
-   typename ::std::enable_if<!::std::is_void<U>::value, void>::type
+   typename ::std::enable_if< ::std::is_same<U, ResultType>::value
+                              && !::std::is_void<U>::value, void>::type
    set_result(U res) {
       if (still_needed()) {
          delivery outbound(dest_);
@@ -230,10 +236,16 @@ class remote_operation<ResultType>::promise {
       fulfilled_ = true;
    }
 
-   //! Fulfill this promise with a void result.
+   /*! \brief Fulfill this promise with a void result.
+    *
+    * This function only exists for promise<void>.
+    *
+    * \return void
+    */
    template<typename U = ResultType>
    // This causes an SFINAE failure in expansion if ResultType is not void.
-   typename ::std::enable_if< ::std::is_void<U>::value, void>::type
+   typename ::std::enable_if< ::std::is_same<U, ResultType>::value
+                              && ::std::is_void<U>::value, void>::type
    set_result() {
       if (still_needed()) {
          delivery outbound(dest_);
