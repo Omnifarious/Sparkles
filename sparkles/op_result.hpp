@@ -37,17 +37,24 @@ class op_result_base {
    };
 
    //! What type of value is stored here?
-   stored_type get_type() const { return type_; }
+   stored_type get_type() const noexcept(true) { return type_; }
 
    //! Does this contains a value, i.e. is the stored type not 'nothing'?
-   bool is_valid() const     { return type_ != stored_type::nothing; }
-
+   bool is_valid() const noexcept(true) {
+      return type_ != stored_type::nothing;
+   }
    //! Does this hold an ::std::error_code value?
-   bool is_error() const     { return type_ == stored_type::error; }
+   bool is_error() const noexcept(true) {
+      return type_ == stored_type::error;
+   }
    //! Does this hold an ::std::exception_ptr value?
-   bool is_exception() const { return type_ == stored_type::exception; }
+   bool is_exception() const noexcept(true) {
+      return type_ == stored_type::exception;
+   }
    //! Does this hold a 'success' value?
-   bool is_value() const     { return type_ == stored_type::value; }
+   bool is_value() const noexcept(true) {
+      return type_ == stored_type::value;
+   }
 
    //! Set this object to contain an ::std::error_code result.
    void set_bad_result(::std::error_code err) {
@@ -173,7 +180,7 @@ class op_result_base {
 
  protected:
    //! Defaults to holding nothing.
-   op_result_base() : type_(stored_type::nothing) { }
+   op_result_base() noexcept(true) : type_(stored_type::nothing) { }
    /*! \brief Copying is the unsurprising default. Protected to avoid slicing.
     */
    op_result_base(const op_result_base &) = default;
@@ -386,6 +393,9 @@ class op_result : public priv::op_result_base {
    op_result() = default;
    //! Construct this op_result as a copy of another.
    op_result(const op_result &other)
+      noexcept(::std::is_void<T>::value ||
+               (::std::is_nothrow_default_constructible<T>::value &&
+                ::std::is_nothrow_copy_assignable<T>::value))
         : priv::op_result_base(other)
    {
       if (get_type() == stored_type::value) {
@@ -396,16 +406,18 @@ class op_result : public priv::op_result_base {
     *
     * This means that 'other' will contain nothing after this constructor
     * finishes.
-    */
-   op_result(op_result &&other)
+    *
+    * \note Note that in this implementation val_ is always moved from the
+    * source, even if the source does not contain a value. This means that if
+    * the default or empty value is expensive to move as compared to simply
+    * construct from scratch, this function will be expensive (and inefficient).
+   */
+   template <typename U = T>
+   op_result(op_result<T> &&other)
       noexcept(::std::is_void<T>::value ||
-               (::std::is_nothrow_default_constructible<T>::value &&
-                ::std::is_nothrow_move_assignable<T>::value))
-        : priv::op_result_base(::std::move(other))
+               ::std::is_nothrow_move_constructible<T>::value)
+      : priv::op_result_base(::std::move(other)), val_(::std::move(other.val_))
    {
-      if (get_type() == stored_type::value) {
-         val_ = ::std::move(other.val_);
-      }
    }
 
    //! Copy stored value (if any) in addition to base class copy assignment.
