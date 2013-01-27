@@ -2,10 +2,29 @@
 
 namespace sparkles {
 
+void operation_base::register_as_dependent(const opbase_ptr_t &op)
+{
+   if (op != nullptr) {
+      operation_base &me = *(op.get());
+      if (!me.finished()) {
+         for (const auto &dep: me.dependencies_) {
+            dep->add_dependent(op);
+            if (me.finished()) {
+               break;
+            }
+         }
+      }
+   }
+}
+
 void operation_base::add_dependent(const opbase_ptr_t &dependent)
 {
    if (dependent != nullptr) {
-      dependents_[dependent.get()] = weak_opbase_ptr_t(dependent);
+      if (!finished()) {
+         dependents_[dependent.get()] = weak_opbase_ptr_t(dependent);
+      } else {
+         dependent->dependency_finished(shared_from_this());
+      }
    }
 }
 

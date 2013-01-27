@@ -55,11 +55,7 @@ class operation_base : public ::std::enable_shared_from_this<operation_base>
     * you don't have one of those, then you'll have to call it by hand once you
     * have a proper shared_ptr.
     */
-   static void register_as_dependent(const opbase_ptr_t &op) {
-      op->for_each_dependency([op](const opbase_ptr_t &dep) {
-            dep->add_dependent(op);
-         });
-   }
+   static void register_as_dependent(const opbase_ptr_t &op);
 
  protected:
    /*! \brief Construct from a batch of dependencies.
