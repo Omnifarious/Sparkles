@@ -181,8 +181,12 @@ class op_deferred_func : public operation<ResultType>
           const InputIterator &dependencies_end)
    {
       typedef op_deferred_func<ResultType> me_t;
-      return ::std::make_shared<me_t>(this_is_private{}, ::std::move(func),
-                                      dependencies_begin, dependencies_end);
+      ptr_t newdeferred{
+         ::std::make_shared<me_t>(this_is_private{}, ::std::move(func),
+                                  dependencies_begin, dependencies_end)
+            };
+      me_t::register_as_dependent(newdeferred);
+      return ::std::move(newdeferred);
    }
 
  private:
