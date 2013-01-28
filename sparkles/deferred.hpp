@@ -11,18 +11,24 @@ namespace sparkles {
 
 namespace priv {
 
-template <unsigned int N, typename deplist_t, typename TupleT>
+template <unsigned int N, typename TupleT>
 struct deplist_filler
 {
+   typedef ::std::array< ::sparkles::operation_base::opbase_ptr_t,
+                         ::std::tuple_size<TupleT>::value> deplist_t;
+
    static void fill(deplist_t &deplist, const TupleT &args) {
       deplist[N - 1] = ::std::get<N - 1>(args).wrapper();
-      deplist_filler<N-1, deplist_t, TupleT>::fill(deplist, args);
+      deplist_filler<N-1, TupleT>::fill(deplist, args);
    }
 };
 
-template <typename deplist_t, typename TupleT>
-struct deplist_filler<0, deplist_t, TupleT>
+template <typename TupleT>
+struct deplist_filler<0, TupleT>
 {
+   typedef ::std::array< ::sparkles::operation_base::opbase_ptr_t,
+                         ::std::tuple_size<TupleT>::value> deplist_t;
+
    static void fill(deplist_t &, const TupleT &) { }
 };
 
@@ -46,7 +52,7 @@ class suspended_call {
    }
    deplist_t fetch_deplist() {
       deplist_t deplist;
-      deplist_filler<num_args, deplist_t, TupleT>::fill(deplist, args_);
+      deplist_filler<num_args, TupleT>::fill(deplist, args_);
       return ::std::move(deplist);
    }
 
