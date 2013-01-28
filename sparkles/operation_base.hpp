@@ -100,6 +100,26 @@ class operation_base : public ::std::enable_shared_from_this<operation_base>
                              f);
    }
 
+   /*! \brief Find a dependency that satisfies the predicate.
+    *
+    * \return pointer to a dependency satisfying the condition or nullptr if
+    * none do.
+    *
+    * This can be used to implement almost any sort of scan of the dependency
+    * list that can abort early.
+    */
+   template <class UnaryPredicate>
+   opbase_ptr_t find_dependency_if(UnaryPredicate f) const {
+      auto deploc =  ::std::find_if(dependencies_.begin(),
+                                    dependencies_.end(),
+                                    f);
+      if (deploc != dependencies_.end()) {
+         return *deploc;
+      } else {
+         return opbase_ptr_t(nullptr);
+      }
+   }
+
    /*! \brief I no longer depend on this operation.
     *
     * \param[in] dependency The operation you no longer depend on.
