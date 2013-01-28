@@ -263,6 +263,8 @@ template <typename ResultType, typename... ArgTypes>
 priv::deferred<ResultType, ArgTypes...>
 defer(::std::function<ResultType(ArgTypes...)> func)
 {
+   static_assert(sizeof...(ArgTypes) > 0, "Deferring a function with no "
+                 "arguments until its arguments are ready is meaningless.");
    return priv::deferred<ResultType, ArgTypes...>(func);
 }
 
@@ -270,6 +272,8 @@ template <typename ResultType, typename... ArgTypes>
 priv::deferred<ResultType, ArgTypes...>
 defer(ResultType (*func)(ArgTypes...))
 {
+   static_assert(sizeof...(ArgTypes) > 0, "Deferring a function with no "
+                 "arguments until its arguments are ready is meaningless.");
    ::std::function<ResultType(ArgTypes...)> f = func;
    return priv::deferred<ResultType, ArgTypes...>(::std::move(f));
 }
