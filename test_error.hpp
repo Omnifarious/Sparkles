@@ -15,6 +15,8 @@ enum class test_error : int
 class test_error_category_impl : public ::std::error_category
 {
  public:
+   test_error_category_impl() noexcept(true) {}
+
    virtual const char *name() const noexcept(true) {
       return "Sparkles test error.";
    }
