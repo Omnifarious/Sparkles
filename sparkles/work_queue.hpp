@@ -64,8 +64,8 @@ class work_queue {
    bool try_dequeue(work_item_t &dest);
 
  private:
-   class impl_t;
-   class node_t;
+   struct impl_t;
+   struct node_t;
    //! Ugly private thing to make Fast Pimpl work.
    union impl_data {
       long long alignment1;
