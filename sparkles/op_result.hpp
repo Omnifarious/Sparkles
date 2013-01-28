@@ -348,7 +348,7 @@ void value_copier(const T &t, Other &other)
 }
 //! Copy a void value by calling some other type's set_result method.
 template <class Other>
-void value_copier(const fake_void_type &t, Other &other)
+void value_copier(const fake_void_type &, Other &other)
 {
    other.set_result();
 }
@@ -361,7 +361,7 @@ void value_mover(T &&t, Other &other)
 }
 //! 'Move' a void value by calling some other type's set_result method.
 template <class Other>
-void value_mover(fake_void_type &&t, Other &other)
+void value_mover(fake_void_type &&, Other &other)
 {
    other.set_result();
 }
