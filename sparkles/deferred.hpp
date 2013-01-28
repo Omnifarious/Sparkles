@@ -175,8 +175,8 @@ class op_deferred_func : public operation<ResultType>
    op_deferred_func(const this_is_private &, deferred_func_t func,
                     InputIterator dependencies_begin,
                     const InputIterator &dependencies_end)
-        : suspended_call_(::std::move(func)),
-          operation<ResultType>(dependencies_begin, dependencies_end)
+        : operation<ResultType>(dependencies_begin, dependencies_end),
+          suspended_call_(::std::move(func))
    {
    }
 
@@ -198,15 +198,15 @@ class op_deferred_func : public operation<ResultType>
  private:
    ::std::function<op_result<ResultType>(void)> suspended_call_;
 
-   virtual void i_dependency_finished(const opbase_ptr_t &dependency) {
+   virtual void i_dependency_finished(const opbase_ptr_t &) {
       if (
          !this->finished() &&
-         find_dependency_if([](const opbase_ptr_t &dep) {
+         this->find_dependency_if([](const opbase_ptr_t &dep) {
                return !dep->finished();
             }) == nullptr
          )
       {
-         set_raw_result(suspended_call_());
+         this->set_raw_result(suspended_call_());
       }
    }
 };
@@ -229,7 +229,8 @@ class deferred {
       argtuple_t saved_args = ::std::make_tuple(args...);
       auto amber = suspcall_t(func_, ::std::move(saved_args));
       typename suspcall_t::deplist_t deplist = amber.fetch_deplist();
-      ::std::function<ResultType()> f{::std::move(amber)};
+      typedef op_deferred_func<ResultType> deferred_op_t;
+      typename deferred_op_t::deferred_func_t f{::std::move(amber)};
       return op_deferred_func<ResultType>::create(f,
                                                   deplist.begin(),
                                                   deplist.end());
