@@ -15,7 +15,7 @@ template <unsigned int N, typename deplist_t, typename TupleT>
 struct deplist_filler
 {
    static void fill(deplist_t &deplist, const TupleT &args) {
-      deplist[N - 1] = ::std::get<N - 1>(args);
+      deplist[N - 1] = ::std::get<N - 1>(args).wrapper();
       deplist_filler<N-1, deplist_t, TupleT>::fill(deplist, args);
    }
 };
@@ -148,6 +148,8 @@ class wrapped_type
    result() {
       return wrapped_->result();
    }
+
+   const type &wrapper() const { return wrapped_; }
 
  private:
    type wrapped_;
