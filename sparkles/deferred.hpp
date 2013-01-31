@@ -94,21 +94,24 @@ struct build_indices<0, Is...> : indices<Is...> {};
 template <typename Tuple>
 using IndicesFor = build_indices< ::std::tuple_size<Tuple>::value>;
 
-template <typename Tuple, ::std::size_t... Indices>
-inline ::std::array<const opbase_ptr_t, ::std::tuple_size<Tuple>::value>
-argtuple_to_array(const Tuple &t, indices<Indices...>)
+template <typename Tuple, typename Func, ::std::size_t... Indices>
+inline ::std::array<decltype( ::std::declval<Func>()( ::std::declval<wrapped_type_base>())),
+                    ::std::tuple_size<Tuple>::value>
+argtuple_to_array(const Tuple &t, const Func &f, indices<Indices...>)
 {
    constexpr auto elements = ::std::tuple_size<Tuple>::value;
-   typedef ::std::array<const opbase_ptr_t, elements> out_ary_t;
-   out_ary_t foo{ ::std::get<Indices>(t).wrapper()... };
+   typedef ::std::array<decltype(f( ::std::declval<wrapped_type_base>())),
+                        elements> out_ary_t;
+   out_ary_t foo{ { f(::std::get<Indices>(t))... } };
    return ::std::move(foo);
 }
 
-template <typename Tuple>
-::std::array<const opbase_ptr_t, ::std::tuple_size<Tuple>::value >
-argtuple_to_array(const Tuple &t)
+template <typename Tuple, typename Func>
+inline ::std::array<decltype( ::std::declval<Func>()( ::std::declval<wrapped_type_base>())),
+             ::std::tuple_size<Tuple>::value >
+argtuple_to_array(const Tuple &t, const Func &f)
 {
-   return argtuple_to_array(t, IndicesFor<Tuple> {});
+   return argtuple_to_array(t, f, IndicesFor<Tuple> {});
 }
 
 template <typename ResultType, typename FuncT, typename TupleT>
@@ -128,9 +131,13 @@ class suspended_call {
       typedef call_helper< ::std::tuple_size<TupleT>::value> helper_t;
       return ::std::move(helper_t::engage(func_, args_));
    }
-   auto fetch_deplist() -> decltype(argtuple_to_array(::std::declval<TupleT>()))
+   ::std::array<const opbase_ptr_t, num_args>
+   fetch_deplist()
    {
-      return argtuple_to_array(this->args_);
+      auto converter = [](const wrapped_type_base &w) -> const opbase_ptr_t {
+         return w.wrapper();
+      };
+      return argtuple_to_array(this->args_, converter);
    }
 
  private:
