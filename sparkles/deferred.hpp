@@ -6,38 +6,116 @@
 #include <array>
 #include <sparkles/operation.hpp>
 #include <sparkles/operation_base.hpp>
+#include <cstddef>
 
 namespace sparkles {
 
 namespace priv {
 
-template <unsigned int N, typename TupleT>
-struct deplist_filler
-{
-   typedef ::std::array< ::sparkles::operation_base::opbase_ptr_t,
-                         ::std::tuple_size<TupleT>::value> deplist_t;
+template <typename T>
+struct is_op_ptr {
+ private:
+   // Returns false_type, which has a ::value that is false.
+   template <class AT>
+   static constexpr std::false_type is_it_a_ptr(...);
 
-   static void fill(deplist_t &deplist, const TupleT &args) {
-      deplist[N - 1] = ::std::get<N - 1>(args).wrapper();
-      deplist_filler<N-1, TupleT>::fill(deplist, args);
+   // Returns true_type (if enable_if allows it to exist).
+   template <class AT>
+   static constexpr typename ::std::enable_if<
+      ::std::is_same<
+         AT,
+         typename operation<typename AT::element_type::result_type>::ptr_t>::value,
+      std::true_type>::type  // note the true_type return
+   is_it_a_ptr(int); // no definition needed
+
+ public:
+   // do everything unevaluated
+   static constexpr bool value = decltype(is_it_a_ptr<T>(0))::value;
+};
+
+class wrapped_type_base
+{
+ protected:
+   typedef operation_base::opbase_ptr_t opbase_ptr_t;
+
+ public:
+   virtual bool this_one_has_error(const opbase_ptr_t &) const = 0;
+   virtual opbase_ptr_t wrapper() const = 0;
+};
+
+template <typename T>
+class wrapped_type : public wrapped_type_base
+{
+ public:
+   static constexpr bool passthrough = is_op_ptr<T>::value;
+   typedef typename ::std::conditional< passthrough,
+                                        T,
+                                        typename operation<T>::ptr_t>::type type;
+   typedef T orig_type;
+   typedef decltype(::std::declval<type>()->result()) base_type;
+
+   wrapped_type(const type &o) : wrapped_(o) { }
+   wrapped_type(type &&o) : wrapped_(o) { }
+
+   template <typename U = T>
+   typename ::std::enable_if< ::std::is_same<U, T>::value && passthrough,
+                              orig_type>::type
+   result() {
+      return wrapped_;
    }
+   template <typename U = T>
+   typename ::std::enable_if< ::std::is_same<U, T>::value && !passthrough,
+                              orig_type>::type
+   result() const {
+      return wrapped_->result();
+   }
+   bool this_one_has_error(const opbase_ptr_t &bp) const override {
+      return !passthrough && (bp == wrapped_) &&
+         (wrapped_->is_exception() || wrapped_->is_error());
+   }
+
+   opbase_ptr_t wrapper() const override { return wrapped_; }
+
+ private:
+   type wrapped_;
 };
 
-template <typename TupleT>
-struct deplist_filler<0, TupleT>
+typedef operation_base::opbase_ptr_t opbase_ptr_t;
+
+template < ::std::size_t... Indices>
+struct indices {};
+
+template < ::std::size_t N, std::size_t... Is>
+struct build_indices : build_indices<N-1, N-1, Is...> {};
+
+template < ::std::size_t... Is>
+struct build_indices<0, Is...> : indices<Is...> {};
+
+template <typename Tuple>
+using IndicesFor = build_indices< ::std::tuple_size<Tuple>::value>;
+
+template <typename Tuple, ::std::size_t... Indices>
+inline ::std::array<const opbase_ptr_t, ::std::tuple_size<Tuple>::value>
+argtuple_to_array(const Tuple &t, indices<Indices...>)
 {
-   typedef ::std::array< ::sparkles::operation_base::opbase_ptr_t,
-                         ::std::tuple_size<TupleT>::value> deplist_t;
+   constexpr auto elements = ::std::tuple_size<Tuple>::value;
+   typedef ::std::array<const opbase_ptr_t, elements> out_ary_t;
+   out_ary_t foo{ ::std::get<Indices>(t).wrapper()... };
+   return ::std::move(foo);
+}
 
-   static void fill(deplist_t &, const TupleT &) { }
-};
+template <typename Tuple>
+::std::array<const opbase_ptr_t, ::std::tuple_size<Tuple>::value >
+argtuple_to_array(const Tuple &t)
+{
+   return argtuple_to_array(t, IndicesFor<Tuple> {});
+}
 
 template <typename ResultType, typename FuncT, typename TupleT>
 class suspended_call {
  public:
    typedef op_result<ResultType> op_result_t;
    static constexpr unsigned int num_args = ::std::tuple_size<TupleT>::value;
-   typedef ::std::array<operation_base::opbase_ptr_t, num_args> deplist_t;
 
    explicit suspended_call(FuncT func, TupleT args)
         : func_(::std::move(func)), args_(::std::move(args))
@@ -50,10 +128,9 @@ class suspended_call {
       typedef call_helper< ::std::tuple_size<TupleT>::value> helper_t;
       return ::std::move(helper_t::engage(func_, args_));
    }
-   deplist_t fetch_deplist() {
-      deplist_t deplist;
-      deplist_filler<num_args, TupleT>::fill(deplist, args_);
-      return ::std::move(deplist);
+   auto fetch_deplist() -> decltype(argtuple_to_array(::std::declval<TupleT>()))
+   {
+      return argtuple_to_array(this->args_);
    }
 
  private:
@@ -105,60 +182,6 @@ class suspended_call {
          return ::std::move(result);
       }
    };
-};
-
-template <typename T>
-struct is_op_ptr {
- private:
-   // Returns false_type, which has a ::value that is false.
-   template <class AT>
-   static constexpr std::false_type is_it_a_ptr(...);
-
-   // Returns true_type (if enable_if allows it to exist).
-   template <class AT>
-   static constexpr typename ::std::enable_if<
-      ::std::is_same<
-         AT,
-         typename operation<typename AT::element_type::result_type>::ptr_t>::value,
-      std::true_type>::type  // note the true_type return
-   is_it_a_ptr(int); // no definition needed
-
- public:
-   // do everything unevaluated
-   static constexpr bool value = decltype(is_it_a_ptr<T>(0))::value;
-};
-
-template <typename T>
-class wrapped_type
-{
- public:
-   static constexpr bool passthrough = is_op_ptr<T>::value;
-   typedef typename ::std::conditional< passthrough,
-                                        T,
-                                        typename operation<T>::ptr_t>::type type;
-   typedef T orig_type;
-   typedef decltype(::std::declval<type>()->result()) base_type;
-
-   wrapped_type(const type &o) : wrapped_(o) { }
-   wrapped_type(type &&o) : wrapped_(o) { }
-
-   template <typename U = T>
-   typename ::std::enable_if< ::std::is_same<U, T>::value && passthrough,
-                              orig_type>::type
-   result() {
-      return wrapped_;
-   }
-   template <typename U = T>
-   typename ::std::enable_if< ::std::is_same<U, T>::value && !passthrough,
-                              orig_type>::type
-   result() {
-      return wrapped_->result();
-   }
-
-   const type &wrapper() const { return wrapped_; }
-
- private:
-   type wrapped_;
 };
 
 template <typename ResultType>
@@ -228,7 +251,7 @@ class deferred {
       typedef suspended_call<ResultType, wrapped_func_t, argtuple_t> suspcall_t;
       argtuple_t saved_args = ::std::make_tuple(args...);
       auto amber = suspcall_t(func_, ::std::move(saved_args));
-      typename suspcall_t::deplist_t deplist = amber.fetch_deplist();
+      auto deplist = amber.fetch_deplist();
       typedef op_deferred_func<ResultType> deferred_op_t;
       typename deferred_op_t::deferred_func_t f{::std::move(amber)};
       return op_deferred_func<ResultType>::create(f,
