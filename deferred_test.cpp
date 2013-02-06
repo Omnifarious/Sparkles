@@ -40,10 +40,8 @@ BOOST_AUTO_TEST_CASE( void_arg_and_result )
 {
    using ::sparkles::defer;
    a_void_function_called = false;
-   BOOST_CHECK(!a_void_function_called);
    auto result = defer(a_void_function).until();
    BOOST_CHECK(result->finished());
-   BOOST_CHECK(a_void_function_called);
 }
 #endif
 
@@ -90,6 +88,10 @@ BOOST_AUTO_TEST_CASE( multiply_int_test )
       BOOST_CHECK(!result->finished());
       multiplier->set_result(1123);
       BOOST_CHECK(result->finished());
+      multiplicand.reset();
+      multiplier.reset();
+      BOOST_CHECK(multiplicand_deleted);
+      BOOST_CHECK(multiplier_deleted);
       BOOST_CHECK(!(result->is_error() || result->is_exception()));
       BOOST_CHECK_EQUAL(result->result(), 1528403);
    }
@@ -108,6 +110,10 @@ BOOST_AUTO_TEST_CASE( multiply_int_test )
       BOOST_CHECK(!result->finished());
       multiplicand->set_result(1361);
       BOOST_CHECK(result->finished());
+      multiplicand.reset();
+      multiplier.reset();
+      BOOST_CHECK(multiplicand_deleted);
+      BOOST_CHECK(multiplier_deleted);
       BOOST_CHECK(!(result->is_error() || result->is_exception()));
       BOOST_CHECK_EQUAL(result->result(), 1528403);
    }
@@ -133,10 +139,12 @@ BOOST_AUTO_TEST_CASE( multiply_int_arg_exception )
       } catch (...) {
          multiplicand->set_bad_result(::std::current_exception());
       }
-      // Note, it is permissible here for result to be finished. But it is also
-      // permissible for it not to be.
-      multiplier->set_result(1123);
+      BOOST_CHECK(!multiplier->finished());
       BOOST_CHECK(result->finished());
+      multiplicand.reset();
+      multiplier.reset();
+      BOOST_CHECK(multiplicand_deleted);
+      BOOST_CHECK(multiplier_deleted);
       BOOST_CHECK(result->is_exception());
       BOOST_CHECK_THROW(result->result(), test_exception);
    }
@@ -159,6 +167,10 @@ BOOST_AUTO_TEST_CASE( multiply_int_arg_exception )
          multiplier->set_bad_result(::std::current_exception());
       }
       BOOST_CHECK(result->finished());
+      multiplicand.reset();
+      multiplier.reset();
+      BOOST_CHECK(multiplicand_deleted);
+      BOOST_CHECK(multiplier_deleted);
       BOOST_CHECK(result->is_exception());
       BOOST_CHECK_THROW(result->result(), test_exception);
    }
@@ -182,6 +194,10 @@ BOOST_AUTO_TEST_CASE( multiply_int_arg_exception )
       // permissible for it not to be.
       multiplicand->set_result(1123);
       BOOST_CHECK(result->finished());
+      multiplicand.reset();
+      multiplier.reset();
+      BOOST_CHECK(multiplicand_deleted);
+      BOOST_CHECK(multiplier_deleted);
       BOOST_CHECK(result->is_exception());
       BOOST_CHECK_THROW(result->result(), test_exception);
    }
@@ -204,6 +220,10 @@ BOOST_AUTO_TEST_CASE( multiply_int_arg_exception )
          multiplicand->set_bad_result(::std::current_exception());
       }
       BOOST_CHECK(result->finished());
+      multiplicand.reset();
+      multiplier.reset();
+      BOOST_CHECK(multiplicand_deleted);
+      BOOST_CHECK(multiplier_deleted);
       BOOST_CHECK(result->is_exception());
       BOOST_CHECK_THROW(result->result(), test_exception);
    }
@@ -232,10 +252,17 @@ BOOST_AUTO_TEST_CASE( multiply_chain )
       BOOST_CHECK(!result->finished());
       op1->set_result(1123);
       BOOST_CHECK(!result->finished());
+      op1.reset();
+      BOOST_CHECK(!op1_deleted);
       op2->set_result(1361);
       BOOST_CHECK(!result->finished());
+      op2.reset();
       op3->set_result(23);
       BOOST_CHECK(result->finished());
+      op3.reset();
+      BOOST_CHECK(op1_deleted);
+      BOOST_CHECK(op2_deleted);
+      BOOST_CHECK(op3_deleted);
       BOOST_CHECK_EQUAL(result->result(), 35153269);
    }
    BOOST_CHECK(op1_deleted);
@@ -263,12 +290,15 @@ BOOST_AUTO_TEST_CASE( multiply_chain_exception )
       BOOST_CHECK(!result->finished());
       op1->set_result(1123);
       BOOST_CHECK(!result->finished());
+      op1.reset();
+      BOOST_CHECK(!op1_deleted);
       op2->set_result(42);
-      // The inner function (the first call to defer) threw an exception. The
-      // outer function (what result currently points at) may or not be
-      // finished. Both are allowed.
-      op3->set_result(23);
       BOOST_CHECK(result->finished());
+      BOOST_CHECK(op1_deleted);
+      op2.reset();
+      op3.reset();
+      BOOST_CHECK(op2_deleted);
+      BOOST_CHECK(op3_deleted);
       BOOST_CHECK(result->is_exception());
       BOOST_CHECK_THROW(result->result(), test_exception);
    }
