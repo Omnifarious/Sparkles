@@ -35,6 +35,7 @@ struct is_op_ptr {
    static constexpr bool value = decltype(is_it_a_ptr<T>(0))::value;
 };
 
+//! Standard interface for a wrapped_type regardless of which type is wrapped.
 class wrapped_type_base
 {
  protected:
@@ -42,39 +43,55 @@ class wrapped_type_base
 
  public:
    virtual ~wrapped_type_base() noexcept(true) = default;
+   //! Throw if argument evaluation for the wrapped function would throw.
+   //
+   // The description, while true, is not the whole truth. Several conditions
+   // have to be met. As a precondition, it is expected that the passed in
+   // argument is a pointer to a recently completed operation (i,e, a pointer
+   // passed into the operation::i_dependency_finished callback). The conditions
+   // then are as follows:
+   //
+   // \li That pointer is pointing to the same underlying operation as the
+   // wrapper is.
+   // \li The wrapper isn't a 'passthrough', meaning that the 'unwrap' function
+   // isn't trivial and actually requires fetching a result value.
+   // \li Ffetching the result from the wrapper (aka unwrapping it) would result
+   // in throwing an exception,
+   //
+   // If all these conditions are met, this function is expected to unwrap the
+   // argument, thereby throwing the resulting exception.
    virtual void throw_on_error(const opbase_ptr_t &) const = 0;
-   virtual opbase_ptr_t wrapper() const = 0;
 };
 
 template <typename T>
 class wrapped_type : public wrapped_type_base
 {
  public:
-   static constexpr bool passthrough = is_op_ptr<T>::value;
-   typedef typename ::std::conditional< passthrough,
-                                        T,
-                                        typename operation<T>::ptr_t>::type type;
-   typedef T orig_type;
-   typedef decltype(::std::declval<type>()->result()) base_type;
+   typedef typename ::std::remove_reference<T>::type orig_type;
+   typedef typename operation<T>::ptr_t possible_wrapper;
+   static constexpr bool passthrough = is_op_ptr<orig_type>::value;
+   typedef typename ::std::conditional<passthrough,
+                                       orig_type,
+                                       possible_wrapper>::type type;
 
    wrapped_type(const type &o) : wrapped_(o) { }
-   wrapped_type(type &&o) : wrapped_(o) { }
+   wrapped_type(type &&o) : wrapped_(::std::move(o)) { }
    virtual ~wrapped_type() noexcept(true) = default;
 
    template <typename U = T>
    typename ::std::enable_if< ::std::is_same<U, T>::value && passthrough,
                               orig_type>::type
-   result() {
+   unwrap() {
       return wrapped_;
    }
    template <typename U = T>
    typename ::std::enable_if< ::std::is_same<U, T>::value && !passthrough,
                               orig_type>::type
-   result() const {
+   unwrap() const {
       return wrapped_->result();
    }
 
-   opbase_ptr_t wrapper() const override { return wrapped_; }
+   const type &wrapper() const { return wrapped_; }
 
    void throw_on_error(const opbase_ptr_t &bp) const override {
       if (!passthrough && (bp == wrapped_) &&
@@ -88,12 +105,14 @@ class wrapped_type : public wrapped_type_base
    type wrapped_;
 };
 
+//! The end-case for a recursively expanded for_each for members of a tuple.
 template< ::std::size_t I = 0, typename Func, typename... Tp>
 inline typename ::std::enable_if<I == sizeof...(Tp), void>::type
 for_each(const ::std::tuple<Tp...> &, Func)
 {
 }
 
+//! A recursively expanded for_each for members of a tuple.
 template< ::std::size_t I = 0, typename Func, typename... Tp>
 inline typename ::std::enable_if<I < sizeof...(Tp), void>::type
 for_each(const ::std::tuple<Tp...> &t, Func f)
@@ -102,6 +121,9 @@ for_each(const ::std::tuple<Tp...> &t, Func f)
    for_each<I + 1, Func, Tp...>(t, f);
 }
 
+/** \brief Base type for suspended function calls where promises of future
+ * arguments are held until they're fulfilled.
+*/
 template <typename ResultType>
 class suspended_call_base {
  protected:
@@ -113,9 +135,33 @@ class suspended_call_base {
    typedef ::std::vector<opbase_ptr_t> deplist_t;
    typedef op_result<ResultType> op_result_t;
 
+   //! Call the suspended function (can only be called once).
    virtual op_result_t operator()() = 0;
+   //! Fetch a dependency list based on the function argument list.
    virtual deplist_t fetch_deplist() const = 0;
+   //! Throw if the given arg that's just finished throws.
    virtual void test_arg_throw(const opbase_ptr_t &arg) const = 0;
+
+ protected:
+   //! A functor used in derived classes to implement fetch_deplist.
+   class dep_vector_populator {
+    public:
+      typedef operation_base::opbase_ptr_t opbase_ptr_t;
+
+      dep_vector_populator(::std::vector<opbase_ptr_t> &vec_to_populate)
+           : vec_to_populate_(vec_to_populate)
+      {
+      }
+      template <typename WrappedType>
+      void operator ()(const WrappedType &wt) {
+         if (!wt.passthrough) {
+            vec_to_populate_.emplace_back(wt.wrapper());
+         }
+      }
+
+    private:
+      ::std::vector<opbase_ptr_t> &vec_to_populate_;
+   };
 };
 
 template <typename ResultType, typename FuncT, typename TupleT>
@@ -140,11 +186,12 @@ class suspended_call : public suspended_call_base<ResultType> {
    }
    deplist_t fetch_deplist() const override
    {
+      typedef typename suspended_call_base<ResultType>::dep_vector_populator
+         dep_vector_populator;
+
       deplist_t deplist;
       deplist.reserve(num_args);
-      for_each(this->args_, [&deplist](const wrapped_type_base &w) -> void {
-            deplist.emplace_back(w.wrapper());
-         });
+      for_each(this->args_, dep_vector_populator{ deplist });
       return ::std::move(deplist);
    }
    void test_arg_throw(const opbase_ptr_t &arg) const override
@@ -178,7 +225,7 @@ class suspended_call : public suspended_call_base<ResultType> {
          using ::std::move;
          op_result_t result;
          try {
-            result.set_result(move(func(::std::get<I>(args).result()...)));
+            result.set_result(move(func(::std::get<I>(args).unwrap()...)));
          } catch (...) {
             result.set_bad_result(::std::current_exception());
          }
@@ -195,7 +242,7 @@ class suspended_call : public suspended_call_base<ResultType> {
       engage(FuncT &func, TupleT &args) {
          op_result_t result;
          try {
-            func(::std::get<I>(args).result()...);
+            func(::std::get<I>(args).unwrap()...);
             result.set_result();
          } catch (...) {
             result.set_bad_result(::std::current_exception());
@@ -270,6 +317,9 @@ class op_deferred_func : public operation<ResultType>
    }
 };
 
+/** \brief A template type to wrap a function call in a wrapper that now takes
+ * promises of future values instead of the values themselves.
+ */
 template <typename ResultType, typename... ArgTypes>
 class deferred {
  public:
@@ -282,10 +332,10 @@ class deferred {
    {
    }
 
-   operation_t until(const typename wrapped_type<ArgTypes>::type &... args) {
+   operation_t until(typename wrapped_type<ArgTypes>::type... args) {
       typedef ::std::tuple<wrapped_type<ArgTypes>...> argtuple_t;
       typedef suspended_call<ResultType, wrapped_func_t, argtuple_t> suspcall_t;
-      argtuple_t saved_args = ::std::make_tuple(args...);
+      argtuple_t saved_args = ::std::make_tuple(::std::move(args)...);
       ::std::unique_ptr<suspcall_t> amber{
          new suspcall_t(func_, ::std::move(saved_args))
             };
