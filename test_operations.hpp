@@ -2,6 +2,7 @@
 
 #include "test_error.hpp"
 #include <sparkles/operation.hpp>
+#include <vector>
 
 namespace sparkles {
 namespace test {
