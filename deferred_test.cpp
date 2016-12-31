@@ -239,7 +239,6 @@ BOOST_AUTO_TEST_CASE( multiply_chain )
 {
    finishedq_t q;
    using ::sparkles::defer;
-   typedef operation<int>::ptr_t opint_ptr_t;
 
    bool op1_deleted = false;
    bool op2_deleted = false;
