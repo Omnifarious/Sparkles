@@ -7,9 +7,13 @@
 
 namespace {
 
+#ifdef TEST_COMPILE_FAIL_NO_ARGUMENTS
+static bool a_void_function_called = false;
+
 void a_void_function()
 {
 }
+#endif
 
 void throws_exception(int)
 {
@@ -35,7 +39,7 @@ namespace test {
 
 BOOST_AUTO_TEST_SUITE(deferred_test)
 
-#if 0  // This is a compile time test.
+#ifdef TEST_COMPILE_FAIL_NO_ARGUMENTS // This is a compile time test.
 BOOST_AUTO_TEST_CASE( void_arg_and_result )
 {
    using ::sparkles::defer;
