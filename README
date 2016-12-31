@@ -5,7 +5,8 @@ available.
 The goal is to allow you to write event driven code without having the
 inversion of control flow that makes such code hard to read.
 
-This code makes extensive use of C++11 features.
+This code makes extensive use of C++11 features. And there is also an
+attempt to make extensive use of Doxygen for documentation.
 
 See:
 
