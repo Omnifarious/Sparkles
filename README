@@ -1,0 +1,13 @@
+This is a library that attempts to allow you to write expressions with
+futures and have them be evaluated as soon as the results become
+available.
+
+The goal is to allow you to write event driven code without having the
+inversion of control flow that makes such code hard to read.
+
+This code makes extensive use of C++11 features.
+
+See:
+
+ * https://en.wikipedia.org/wiki/Inversion_of_control
+ * https://en.wikipedia.org/wiki/Event-driven_programming
