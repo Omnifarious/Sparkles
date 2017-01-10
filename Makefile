@@ -3,7 +3,7 @@ TESTCPP = $(filter %_test.cpp,$(CPPFILES))
 LIBCPP = $(filter-out %_test.cpp,$(CPPFILES))
 
 CPPFLAGS = -I.
-CXX = ccache g++ -march=native -mtune=native -pipe -std=c++11
+CXX = g++ -march=native -mtune=native -pipe -std=c++17
 #CXXFLAGS = -pedantic -O0 -ggdb -Wall -Wextra -pthread -fprofile-arcs -ftest-coverage
 CXXFLAGS = -pedantic -O0 -ggdb -Wall -Wextra -pthread
 #CXXFLAGS = -Ofast -ggdb -Wall -Wextra -pthread
