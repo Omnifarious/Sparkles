@@ -23,6 +23,8 @@ test_all: $(patsubst %.cpp,%.o,$(LIBCPP) $(TESTCPP))
 	$(CXX) $(CXXFLAGS) $(^) -o $(@) -lboost_unit_test_framework
 
 doxygen:
-	rm -rf docs/doxygen
+	if [ -d docs/doxygen ]; then \
+	    rm -rf docs/doxygen/*; \
+	fi
 	mkdir -p docs/doxygen
 	doxygen
