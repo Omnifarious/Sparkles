@@ -49,34 +49,33 @@ BOOST_AUTO_TEST_CASE( add_remove_items )
    auto do_nothing = []() -> void {
    };
    work_queue wq;
-   work_queue::work_item_t item;
-   BOOST_CHECK(!wq.try_dequeue(item));
+   BOOST_CHECK(!wq.dequeue(false));
    wq.enqueue(do_nothing, false);
-   BOOST_CHECK(wq.try_dequeue(item));
-   BOOST_CHECK(!wq.try_dequeue(item));
+   BOOST_CHECK(wq.dequeue(false));
+   BOOST_CHECK(!wq.dequeue(false));
    wq.enqueue(do_nothing, true);
-   BOOST_CHECK(wq.try_dequeue(item));
-   BOOST_CHECK(!wq.try_dequeue(item));
+   BOOST_CHECK(wq.dequeue(false));
+   BOOST_CHECK(!wq.dequeue(false));
    wq.enqueue(do_nothing, false);
    wq.enqueue(do_nothing, false);
-   BOOST_CHECK(wq.try_dequeue(item));
-   BOOST_CHECK(wq.try_dequeue(item));
-   BOOST_CHECK(!wq.try_dequeue(item));
+   BOOST_CHECK(wq.dequeue(false));
+   BOOST_CHECK(wq.dequeue(false));
+   BOOST_CHECK(!wq.dequeue(false));
    wq.enqueue(do_nothing, true);
    wq.enqueue(do_nothing, true);
-   BOOST_CHECK(wq.try_dequeue(item));
-   BOOST_CHECK(wq.try_dequeue(item));
-   BOOST_CHECK(!wq.try_dequeue(item));
+   BOOST_CHECK(wq.dequeue(false));
+   BOOST_CHECK(wq.dequeue(false));
+   BOOST_CHECK(!wq.dequeue(false));
    wq.enqueue(do_nothing, true);
    wq.enqueue(do_nothing, false);
-   BOOST_CHECK(wq.try_dequeue(item));
-   BOOST_CHECK(wq.try_dequeue(item));
-   BOOST_CHECK(!wq.try_dequeue(item));
+   BOOST_CHECK(wq.dequeue(false));
+   BOOST_CHECK(wq.dequeue(false));
+   BOOST_CHECK(!wq.dequeue(false));
    wq.enqueue(do_nothing, false);
    wq.enqueue(do_nothing, true);
-   BOOST_CHECK(wq.try_dequeue(item));
-   BOOST_CHECK(wq.try_dequeue(item));
-   BOOST_CHECK(!wq.try_dequeue(item));
+   BOOST_CHECK(wq.dequeue(false));
+   BOOST_CHECK(wq.dequeue(false));
+   BOOST_CHECK(!wq.dequeue(false));
 }
 
 BOOST_AUTO_TEST_CASE( oob_first )
@@ -90,30 +89,24 @@ BOOST_AUTO_TEST_CASE( oob_first )
    wq.enqueue(bind(execute, 0));
    wq.enqueue(bind(execute, 1));
    BOOST_CHECK_EQUAL(which_executed, -1);
-   wq.dequeue()();
+   wq.dequeue(true).value()();
    BOOST_CHECK_EQUAL(which_executed, 0);
-   wq.dequeue()();
+   wq.dequeue(true).value()();
    BOOST_CHECK_EQUAL(which_executed, 1);
-   {
-      work_queue::work_item_t item;
-      BOOST_CHECK(!wq.try_dequeue(item));
-   }
+   BOOST_CHECK(!wq.dequeue(false));
    wq.enqueue(bind(execute, 2));
    wq.enqueue(bind(execute, 3));
    wq.enqueue(bind(execute, 4), true);
    wq.enqueue(bind(execute, 5), true);
-   wq.dequeue()();
+   wq.dequeue(true).value()();
    BOOST_CHECK_EQUAL(which_executed, 4);
-   wq.dequeue()();
+   wq.dequeue(true).value()();
    BOOST_CHECK_EQUAL(which_executed, 5);
-   wq.dequeue()();
+   wq.dequeue(true).value()();
    BOOST_CHECK_EQUAL(which_executed, 2);
-   wq.dequeue()();
+   wq.dequeue(true).value()();
    BOOST_CHECK_EQUAL(which_executed, 3);
-   {
-      work_queue::work_item_t item;
-      BOOST_CHECK(!wq.try_dequeue(item));
-   }
+   BOOST_CHECK(!wq.dequeue(false));
 }
 
 BOOST_AUTO_TEST_CASE( dequeue_blocks )
@@ -124,7 +117,7 @@ BOOST_AUTO_TEST_CASE( dequeue_blocks )
    work_queue wq;
    auto reading_func = [&before, &after, &wq]() -> void {
       ::std::atomic_store(&before, true);
-      work_queue::work_item_t item{wq.dequeue()};
+      work_queue::work_item_t item{wq.dequeue(true).value()};
       ::std::atomic_store(&after, true);
       item();
    };
@@ -179,13 +172,12 @@ BOOST_AUTO_TEST_CASE( stress_test )
                                     ref(current_result), num_enqueues, 2, 3);
    for (int i = 0; i < num_enqueues; ++i) {
       BOOST_TEST_CHECKPOINT("Dequeue #" << i);
-      wq.dequeue()();
+      wq.dequeue(true).value()();
       results.push_back(current_result);
    }
    ::std::this_thread::yield();
    ::std::this_thread::sleep_for(::std::chrono::milliseconds(20));
-   work_queue::work_item_t item;
-   BOOST_CHECK(!wq.try_dequeue(item));
+   BOOST_CHECK(!wq.dequeue(false));
    {
       int last_result = -1;
       for (int &result: results) {
@@ -209,15 +201,15 @@ BOOST_AUTO_TEST_CASE( stress_test )
       }
    }
 
-   BOOST_CHECK(!wq.try_dequeue(item));
+   BOOST_CHECK(!wq.dequeue(false));
    BOOST_REQUIRE(enqueueing_thread1.joinable());
    enqueueing_thread1.join();
 
-   BOOST_CHECK(!wq.try_dequeue(item));
+   BOOST_CHECK(!wq.dequeue(false));
    BOOST_REQUIRE(enqueueing_thread2.joinable());
    enqueueing_thread2.join();
 
-   BOOST_CHECK(!wq.try_dequeue(item));
+   BOOST_CHECK(!wq.dequeue(false));
    BOOST_REQUIRE(enqueueing_thread3.joinable());
    enqueueing_thread3.join();
 }

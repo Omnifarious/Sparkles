@@ -2,6 +2,14 @@
 
 #include <functional>
 #include <memory>
+#if __has_include(<optional>)
+#  include <optional>
+#elif __has_include(<experimental/optional>)
+#  include <experimental/optional>
+#  define has_experimental_optional 1
+#else
+#  error Some form of optional values from the C++17 spec is required.
+#endif
 
 namespace sparkles {
 
@@ -20,6 +28,11 @@ class work_queue {
  public:
    //! A work item is a function-like object with a void (*)(void) signature.
    typedef ::std::function<void ()> work_item_t;
+ #ifndef has_experimental_optional
+   typedef ::std::optional<work_item_t> possible_work_item_t;
+ #else
+   typedef ::std::experimental::optional<work_item_t> possible_work_item_t;
+ #endif
 
    work_queue(const work_queue &) = delete;
    work_queue(work_queue &&) = delete;
@@ -41,23 +54,18 @@ class work_queue {
     */
    void enqueue(work_item_t item, bool out_of_band = false);
 
-   /*! \brief Deqeue a work item, will block of none available.
+   /*! \brief Deqeue a work item, blocking or not as requested.
     *
-    * \return The work item that was dequed.
+    * \param[in] block Wait for a work item to be available.
+    * \return The work item that was dequed, if any. Will always contain a value
+    *         if block is true.
     *
     * This will throw an exception for various kinds of errors. If an exception
     * is thrown, the queue is guaranteed to not be altered (well, unless that
     * exception was thrown because the semaphore underlying the queue was
     * destroyed, in which case, that means the queue itself was destroyed).
     */
-   work_item_t dequeue();
-
-   /*! \brief Deqeue a work item if there are any in the queue.
-    *
-    * \param[out] dest Where to put the dequeued work item if one was dequeued.
-    * \return true if an item was dequeued, false if not.
-    */
-   bool try_dequeue(work_item_t &dest);
+   possible_work_item_t dequeue(bool block);
 
  private:
    struct impl_t;

@@ -54,7 +54,7 @@ BOOST_AUTO_TEST_CASE( int_valid )
    fred.second->set_result(6);
    BOOST_CHECK(fred.second->fulfilled());
    BOOST_CHECK(!fred.first->finished());
-   wq.dequeue()();
+   wq.dequeue(true).value()();
    BOOST_CHECK(fred.first->finished());
    BOOST_CHECK_EQUAL(fred.first->result(), 6);
    BOOST_CHECK_THROW(fred.second->set_result(5), invalid_result);
@@ -72,7 +72,7 @@ BOOST_AUTO_TEST_CASE( int_error )
    fred.second->set_bad_result(the_error);
    BOOST_CHECK(fred.second->fulfilled());
    BOOST_CHECK(!fred.first->finished());
-   wq.dequeue()();
+   wq.dequeue(true).value()();
    BOOST_CHECK(fred.first->finished());
    BOOST_CHECK_EQUAL(fred.first->error(), the_error);
    BOOST_CHECK_THROW(fred.second->set_result(5), invalid_result);
@@ -90,7 +90,7 @@ BOOST_AUTO_TEST_CASE( int_exception )
    fred.second->set_bad_result(make_exception_ptr());
    BOOST_CHECK(fred.second->fulfilled());
    BOOST_CHECK(!fred.first->finished());
-   wq.dequeue()();
+   wq.dequeue(true).value()();
    BOOST_CHECK(fred.first->finished());
    BOOST_CHECK_THROW(fred.first->result(), test_exception);
    BOOST_CHECK(fred.first->exception() != nullptr);
@@ -113,7 +113,7 @@ BOOST_AUTO_TEST_CASE( int_bad_sets )
    fred.second->set_result(6);
    BOOST_CHECK(fred.second->fulfilled());
    BOOST_CHECK(!fred.first->finished());
-   wq.dequeue()();
+   wq.dequeue(true).value()();
    BOOST_CHECK(fred.first->finished());
    BOOST_CHECK_EQUAL(fred.first->result(), 6);
    BOOST_CHECK_THROW(fred.second->set_result(5), invalid_result);
@@ -131,7 +131,7 @@ BOOST_AUTO_TEST_CASE( void_valid )
    fred.second->set_result();
    BOOST_CHECK(fred.second->fulfilled());
    BOOST_CHECK(!fred.first->finished());
-   wq.dequeue()();
+   wq.dequeue(true).value()();
    BOOST_CHECK(fred.first->finished());
    BOOST_CHECK_NO_THROW(fred.first->result());
    BOOST_CHECK_THROW(fred.second->set_result(), invalid_result);
@@ -149,7 +149,7 @@ BOOST_AUTO_TEST_CASE( void_error )
    fred.second->set_bad_result(the_error);
    BOOST_CHECK(fred.second->fulfilled());
    BOOST_CHECK(!fred.first->finished());
-   wq.dequeue()();
+   wq.dequeue(true).value()();
    BOOST_CHECK(fred.first->finished());
    BOOST_CHECK_EQUAL(fred.first->error(), the_error);
    BOOST_CHECK_THROW(fred.second->set_result(), invalid_result);
@@ -167,7 +167,7 @@ BOOST_AUTO_TEST_CASE( void_exception )
    fred.second->set_bad_result(make_exception_ptr());
    BOOST_CHECK(fred.second->fulfilled());
    BOOST_CHECK(!fred.first->finished());
-   wq.dequeue()();
+   wq.dequeue(true).value()();
    BOOST_CHECK(fred.first->finished());
    BOOST_CHECK_THROW(fred.first->result(), test_exception);
    BOOST_CHECK(fred.first->exception() != nullptr);
@@ -190,7 +190,7 @@ BOOST_AUTO_TEST_CASE( void_bad_sets )
    fred.second->set_result();
    BOOST_CHECK(fred.second->fulfilled());
    BOOST_CHECK(!fred.first->finished());
-   wq.dequeue()();
+   wq.dequeue(true).value()();
    BOOST_CHECK(fred.first->finished());
    BOOST_CHECK_NO_THROW(fred.first->result());
    BOOST_CHECK_THROW(fred.second->set_result(), invalid_result);
@@ -212,10 +212,7 @@ BOOST_AUTO_TEST_CASE( still_needed_before_q_int )
    BOOST_CHECK(!promise->fulfilled());
    promise->set_result(6);
    BOOST_CHECK(promise->fulfilled());
-   {
-      work_queue::work_item_t tmp;
-      BOOST_CHECK(!wq.try_dequeue(tmp));
-   }
+   BOOST_CHECK(!wq.dequeue(false));
 }
 
 BOOST_AUTO_TEST_CASE( still_needed_before_q_void )
@@ -232,10 +229,7 @@ BOOST_AUTO_TEST_CASE( still_needed_before_q_void )
    BOOST_CHECK(!promise->fulfilled());
    promise->set_result();
    BOOST_CHECK(promise->fulfilled());
-   {
-      work_queue::work_item_t tmp;
-      BOOST_CHECK(!wq.try_dequeue(tmp));
-   }
+   BOOST_CHECK(!wq.dequeue(false));
 }
 
 BOOST_AUTO_TEST_CASE( still_needed_before_q_error )
@@ -252,10 +246,7 @@ BOOST_AUTO_TEST_CASE( still_needed_before_q_error )
    BOOST_CHECK(!promise->fulfilled());
    promise->set_bad_result(make_error_code(test_error::some_error));
    BOOST_CHECK(promise->fulfilled());
-   {
-      work_queue::work_item_t tmp;
-      BOOST_CHECK(!wq.try_dequeue(tmp));
-   }
+   BOOST_CHECK(!wq.dequeue(false));
 }
 
 BOOST_AUTO_TEST_CASE( still_needed_before_q_exception )
@@ -272,10 +263,7 @@ BOOST_AUTO_TEST_CASE( still_needed_before_q_exception )
    BOOST_CHECK(!promise->fulfilled());
    promise->set_bad_result(make_exception_ptr());
    BOOST_CHECK(promise->fulfilled());
-   {
-      work_queue::work_item_t tmp;
-      BOOST_CHECK(!wq.try_dequeue(tmp));
-   }
+   BOOST_CHECK(!wq.dequeue(false));
 }
 
 BOOST_AUTO_TEST_CASE( still_needed_after_q )
@@ -291,11 +279,7 @@ BOOST_AUTO_TEST_CASE( still_needed_after_q )
    BOOST_CHECK(promise->fulfilled());
    BOOST_CHECK_EQUAL(op.use_count(), 1);
    op = nullptr;
-   {
-      work_queue::work_item_t tmp;
-      BOOST_CHECK(wq.try_dequeue(tmp));
-      tmp();
-   }
+   BOOST_CHECK_NO_THROW(wq.dequeue(false).value()());
 }
 
 BOOST_AUTO_TEST_CASE( broken_promise_thrown_int )
@@ -310,11 +294,7 @@ BOOST_AUTO_TEST_CASE( broken_promise_thrown_int )
    BOOST_CHECK_EQUAL(promise.use_count(), 1);
    promise = nullptr;
    BOOST_CHECK(!op->finished());
-   {
-      work_queue::work_item_t tmp;
-      BOOST_CHECK(wq.try_dequeue(tmp));
-      tmp();
-   }
+   BOOST_CHECK_NO_THROW(wq.dequeue(false).value()());
    BOOST_CHECK(op->finished());
    BOOST_CHECK_THROW(op->result(), broken_promise);
 }
@@ -331,11 +311,7 @@ BOOST_AUTO_TEST_CASE( broken_promise_thrown_void )
    BOOST_CHECK_EQUAL(promise.use_count(), 1);
    promise = nullptr;
    BOOST_CHECK(!op->finished());
-   {
-      work_queue::work_item_t tmp;
-      BOOST_CHECK(wq.try_dequeue(tmp));
-      tmp();
-   }
+   BOOST_CHECK_NO_THROW(wq.dequeue(false).value()());
    BOOST_CHECK(op->finished());
    BOOST_CHECK_THROW(op->result(), broken_promise);
 }
@@ -352,7 +328,7 @@ BOOST_AUTO_TEST_CASE( simple_inter_thread )
    promise = nullptr;
    ::std::thread promise_thread(run);
    BOOST_CHECK(!op->finished());
-   wq.dequeue()();
+   wq.dequeue(true).value()();
    BOOST_CHECK(op->finished());
    BOOST_CHECK_EQUAL(op->result(), 6);
    ::std::this_thread::yield();
@@ -378,11 +354,8 @@ BOOST_AUTO_TEST_CASE( int_inter_thread_success )
    };
    ::std::thread promise_thread(run, ::std::move(promise));
    BOOST_CHECK(!op->finished());
-   {
-      work_queue::work_item_t tmp;
-      BOOST_CHECK(!wq.try_dequeue(tmp));
-   }
-   wq.dequeue()();
+   BOOST_CHECK(!wq.dequeue(false));
+   wq.dequeue(true).value()();
    BOOST_CHECK(op->finished());
    BOOST_CHECK_EQUAL(op->result(), 6);
    ::std::this_thread::yield();
@@ -411,11 +384,8 @@ BOOST_AUTO_TEST_CASE( int_inter_thread_error )
 
    ::std::thread promise_thread(run, ::std::move(promise));
    BOOST_CHECK(!op->finished());
-   {
-      work_queue::work_item_t tmp;
-      BOOST_CHECK(!wq.try_dequeue(tmp));
-   }
-   wq.dequeue()();
+   BOOST_CHECK(!wq.dequeue(false));
+   wq.dequeue(true).value()();
    BOOST_CHECK(op->finished());
    BOOST_CHECK_EQUAL(op->error(), the_error);
    ::std::this_thread::yield();
@@ -443,11 +413,8 @@ BOOST_AUTO_TEST_CASE( int_inter_thread_exception )
 
    ::std::thread promise_thread(run, ::std::move(promise));
    BOOST_CHECK(!op->finished());
-   {
-      work_queue::work_item_t tmp;
-      BOOST_CHECK(!wq.try_dequeue(tmp));
-   }
-   wq.dequeue()();
+   BOOST_CHECK(!wq.dequeue(false));
+   wq.dequeue(true).value()();
    BOOST_CHECK(op->finished());
    BOOST_CHECK_THROW(op->result(), test_exception);
    ::std::this_thread::yield();
@@ -480,8 +447,7 @@ BOOST_AUTO_TEST_CASE( int_inter_thread_cancel )
    for (int i = 0; i < 5; ++i) {
       ::std::this_thread::yield();
       ::std::this_thread::sleep_for(::std::chrono::milliseconds(20));
-      work_queue::work_item_t witem;
-      bool dequeued = wq.try_dequeue(witem);
+      bool dequeued = wq.dequeue(false) && true;
       BOOST_CHECK(!dequeued);
       if (dequeued) {
          break;
@@ -489,10 +455,7 @@ BOOST_AUTO_TEST_CASE( int_inter_thread_cancel )
    }
    BOOST_REQUIRE(promise_thread.joinable());
    promise_thread.join();
-   {
-      work_queue::work_item_t witem;
-      BOOST_CHECK(!wq.try_dequeue(witem));
-   }
+   BOOST_CHECK(!wq.dequeue(false));
 }
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -198,21 +198,16 @@ work_queue::work_item_t work_queue::real_dequeue(impl_t &impl)
    }
 }
 
-work_queue::work_item_t work_queue::dequeue()
+work_queue::possible_work_item_t work_queue::dequeue(bool block)
 {
    impl_t &impl = impl_();
-   impl.numitems_.acquire();
-   return real_dequeue(impl);
-}
-
-bool work_queue::try_dequeue(work_item_t &dest)
-{
-   impl_t &impl = impl_();
-   if (impl.numitems_.try_acquire()) {
-      real_dequeue(impl).swap(dest);
-      return true;
+   if (block) {
+      impl.numitems_.acquire();
+      return real_dequeue(impl);
+   } else if (impl.numitems_.try_acquire()) {
+      return real_dequeue(impl);
    } else {
-      return false;
+      return {};
    }
 }
 
