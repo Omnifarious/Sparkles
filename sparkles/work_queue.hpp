@@ -21,13 +21,9 @@ class work_queue {
    //! A work item is a function-like object with a void (*)(void) signature.
    typedef ::std::function<void ()> work_item_t;
 
-   //! No copy constructor
    work_queue(const work_queue &) = delete;
-   //! No move constructor
    work_queue(work_queue &&) = delete;
-   //! No copy assignment
    const work_queue &operator =(const work_queue &) = delete;
-   //! No move assignment
    const work_queue &operator =(work_queue &&) = delete;
 
    //! Construct a new work_queue
