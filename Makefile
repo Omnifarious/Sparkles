@@ -4,8 +4,8 @@ LIBCPP = $(filter-out %_test.cpp,$(CPPFILES))
 
 CPPFLAGS = -I.
 CXX = g++ -march=native -mtune=native -pipe -std=c++17
+CXXFLAGS = -pedantic -Og -ggdb -Wall -Wextra -pthread
 #CXXFLAGS = -pedantic -O0 -ggdb -Wall -Wextra -pthread -fprofile-arcs -ftest-coverage
-CXXFLAGS = -pedantic -O0 -ggdb -Wall -Wextra -pthread
 #CXXFLAGS = -Ofast -ggdb -Wall -Wextra -pthread
 
 %.o : %.cpp empty
